@@ -1,5 +1,5 @@
 // Vercel serverless function for live lagna status
-const { calculateLagnaChangeTiming } = require('../server/services/ephemeris');
+const { calculateLagnaChangeTiming, calcPlanetPosition, dateToJulianDay } = require('../server/services/ephemeris');
 const { getSignFromDegree, getNakshatraFromDegree } = require('../server/services/nakshatra');
 const { SIGNS } = require('../server/data/constants');
 
@@ -30,6 +30,12 @@ module.exports = (req, res) => {
     const nakInfo = getNakshatraFromDegree(timing.currentDegree);
     const nextSign = timing.nextSignIndex !== null ? SIGNS[timing.nextSignIndex] : null;
 
+    // Get Moon position for Moon nakshatra (panchang nakshatra)
+    const jd = dateToJulianDay(now);
+    const moonPos = calcPlanetPosition(jd, 'moon');
+    const moonSignInfo = getSignFromDegree(moonPos.longitude);
+    const moonNakInfo = getNakshatraFromDegree(moonPos.longitude);
+
     res.status(200).json({
       success: true,
       timestamp: now.toISOString(),
@@ -48,6 +54,12 @@ module.exports = (req, res) => {
         nextNakshatraChangeMinutes: timing.nextNakshatraChangeMinutes,
         nextChangeType: timing.nextChangeType,
         nextChangeMinutes: timing.nextChangeMinutes,
+        // Moon info
+        moonSign: moonSignInfo.sign,
+        moonNakshatra: moonNakInfo.nakshatra,
+        moonNakshatraLord: moonNakInfo.lord,
+        moonPada: moonNakInfo.pada,
+        moonDegree: moonPos.longitude,
       },
     });
   } catch (error) {

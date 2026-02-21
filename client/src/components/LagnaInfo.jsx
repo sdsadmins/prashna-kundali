@@ -115,11 +115,11 @@ export default function LagnaInfo({ lagnaInfo, timestamp }) {
         )}
       </div>
 
-      {/* Nakshatra + details grid */}
+      {/* Nakshatra + Moon + details grid */}
       <div className="grid grid-cols-2 gap-3 text-sm">
-        {/* Nakshatra */}
+        {/* Lagna Nakshatra */}
         <div className="bg-white/3 rounded-lg p-3 border border-white/5">
-          <div className="text-white/40 text-xs mb-1">{t('nakshatra')}</div>
+          <div className="text-white/40 text-xs mb-1">{t('lagnaNak')}</div>
           <div className="text-white font-medium">
             {lang === 'mr' ? nakMr : nakEn}
           </div>
@@ -128,22 +128,35 @@ export default function LagnaInfo({ lagnaInfo, timestamp }) {
           </div>
           {lagnaInfo.nextNakshatraChangeMinutes && (
             <div className="text-white/20 text-xs mt-1">
-              {lang === 'mr' ? 'नक्षत्र बदल' : 'Nak change'}: ~{lagnaInfo.nextNakshatraChangeMinutes} {t('minutes')}
+              {lang === 'mr' ? 'बदल' : 'Change'}: ~{lagnaInfo.nextNakshatraChangeMinutes} {t('minutes')}
             </div>
           )}
         </div>
 
-        {/* Total degree */}
-        <div className="bg-white/3 rounded-lg p-3 border border-white/5">
-          <div className="text-white/40 text-xs mb-1">
-            {lang === 'mr' ? 'एकूण अंश' : 'Total Degree'}
+        {/* Moon Nakshatra (panchang nakshatra) */}
+        <div className="bg-white/3 rounded-lg p-3 border border-saffron/15">
+          <div className="text-saffron/60 text-xs mb-1">{t('moonNak')}</div>
+          <div className="text-saffron font-medium">
+            {lang === 'mr'
+              ? lagnaInfo.moonNakshatra?.mr
+              : lagnaInfo.moonNakshatra?.en}
           </div>
-          <div className="text-white font-mono font-medium">
-            {formatDegree(lagnaInfo.degree)}
+          <div className="text-white/30 text-xs">
+            {lang === 'mr'
+              ? `${lagnaInfo.moonSign?.mr} | पद ${lagnaInfo.moonPada || '—'}`
+              : `${lagnaInfo.moonSign?.en} | Pada ${lagnaInfo.moonPada || '—'}`}
           </div>
-          <div className="text-white/20 text-xs mt-1">
-            KP Ayanamsa
+        </div>
+      </div>
+
+      {/* Total degree row */}
+      <div className="mt-3 bg-white/3 rounded-lg p-3 border border-white/5 text-sm">
+        <div className="flex justify-between items-center">
+          <div>
+            <span className="text-white/40 text-xs">{lang === 'mr' ? 'एकूण अंश' : 'Total Degree'}: </span>
+            <span className="text-white font-mono font-medium">{formatDegree(lagnaInfo.degree)}</span>
           </div>
+          <span className="text-white/20 text-xs">KP Ayanamsa</span>
         </div>
       </div>
 

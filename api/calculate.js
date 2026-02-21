@@ -3,7 +3,7 @@ const { calculateChart, calculateLagnaChangeTiming } = require('../server/servic
 const { calculateRulingPlanets } = require('../server/services/rulingPlanets');
 const { calculateAnswer } = require('../server/services/ankShastra');
 const { PLANETS } = require('../server/data/constants');
-const { getSignFromDegree } = require('../server/services/nakshatra');
+const { getSignFromDegree, getNakshatraFromDegree } = require('../server/services/nakshatra');
 
 module.exports = (req, res) => {
   // CORS
@@ -97,13 +97,22 @@ module.exports = (req, res) => {
         sign: details.lagnaSign,
         nakshatra: details.lagnaNakshatra,
         pada: details.lagnaPada,
-        nextSignChange: lagnaChangeTiming.nextSignChange,
+        startTime: lagnaChangeTiming.lagnaStartTime,
+        endTime: lagnaChangeTiming.lagnaEndTime,
+        nextSign: lagnaChangeTiming.nextSignIndex !== null
+          ? require('../server/data/constants').SIGNS[lagnaChangeTiming.nextSignIndex]
+          : null,
         nextSignChangeMinutes: lagnaChangeTiming.nextSignChangeMinutes,
         nextNakshatraChange: lagnaChangeTiming.nextNakshatraChange,
         nextNakshatraChangeMinutes: lagnaChangeTiming.nextNakshatraChangeMinutes,
         nextChange: lagnaChangeTiming.nextChange,
         nextChangeType: lagnaChangeTiming.nextChangeType,
         nextChangeMinutes: lagnaChangeTiming.nextChangeMinutes,
+        // Moon position info (panchang nakshatra)
+        moonSign: details.moonSign,
+        moonNakshatra: getNakshatraFromDegree(chartData.planets.moon.longitude).nakshatra,
+        moonPada: getNakshatraFromDegree(chartData.planets.moon.longitude).pada,
+        moonDegree: chartData.planets.moon.longitude,
       },
     });
   } catch (error) {

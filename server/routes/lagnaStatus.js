@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { calculateLagnaChangeTiming, calcHouses, dateToJulianDay } = require('../services/ephemeris');
+const { calculateLagnaChangeTiming, calcPlanetPosition, dateToJulianDay } = require('../services/ephemeris');
 const { getSignFromDegree, getNakshatraFromDegree } = require('../services/nakshatra');
 const { SIGNS } = require('../data/constants');
 
@@ -23,6 +23,12 @@ router.get('/', (req, res) => {
     const nakInfo = getNakshatraFromDegree(timing.currentDegree);
     const nextSign = timing.nextSignIndex !== null ? SIGNS[timing.nextSignIndex] : null;
 
+    // Get Moon position for Moon nakshatra (panchang nakshatra)
+    const jd = dateToJulianDay(now);
+    const moonPos = calcPlanetPosition(jd, 'moon');
+    const moonSignInfo = getSignFromDegree(moonPos.longitude);
+    const moonNakInfo = getNakshatraFromDegree(moonPos.longitude);
+
     res.json({
       success: true,
       timestamp: now.toISOString(),
@@ -41,6 +47,12 @@ router.get('/', (req, res) => {
         nextNakshatraChangeMinutes: timing.nextNakshatraChangeMinutes,
         nextChangeType: timing.nextChangeType,
         nextChangeMinutes: timing.nextChangeMinutes,
+        // Moon info
+        moonSign: moonSignInfo.sign,
+        moonNakshatra: moonNakInfo.nakshatra,
+        moonNakshatraLord: moonNakInfo.lord,
+        moonPada: moonNakInfo.pada,
+        moonDegree: moonPos.longitude,
       },
     });
   } catch (error) {

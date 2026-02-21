@@ -4,7 +4,7 @@ const { calculateChart, calculateLagnaChangeTiming } = require('../services/ephe
 const { calculateRulingPlanets } = require('../services/rulingPlanets');
 const { calculateAnswer } = require('../services/ankShastra');
 const { SIGNS, PLANETS, NAKSHATRAS } = require('../data/constants');
-const { getSignFromDegree } = require('../services/nakshatra');
+const { getSignFromDegree, getNakshatraFromDegree } = require('../services/nakshatra');
 
 /**
  * POST /api/calculate
@@ -108,6 +108,19 @@ router.post('/', (req, res) => {
         nextChange: lagnaChangeTiming.nextChange,
         nextChangeType: lagnaChangeTiming.nextChangeType,
         nextChangeMinutes: lagnaChangeTiming.nextChangeMinutes,
+        // Moon position info (panchang nakshatra)
+        moonSign: details.moonSign,
+        moonNakshatra: (() => {
+          const moonDeg = chartData.planets.moon.longitude;
+          const moonNakInfo = getNakshatraFromDegree(moonDeg);
+          return moonNakInfo.nakshatra;
+        })(),
+        moonPada: (() => {
+          const moonDeg = chartData.planets.moon.longitude;
+          const moonNakInfo = getNakshatraFromDegree(moonDeg);
+          return moonNakInfo.pada;
+        })(),
+        moonDegree: chartData.planets.moon.longitude,
       },
     });
   } catch (error) {

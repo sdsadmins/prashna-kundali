@@ -8,6 +8,7 @@ import CalculationBreakdown from './components/CalculationBreakdown';
 import AnswerDisplay from './components/AnswerDisplay';
 import LagnaInfo from './components/LagnaInfo';
 import LiveLagnaBar from './components/LiveLagnaBar';
+import VerificationPanel from './components/VerificationPanel';
 import { getCurrentPosition } from './utils/geolocation';
 import './index.css';
 
@@ -159,6 +160,13 @@ function AppContent() {
 
               {/* Ruling Planets Table */}
               <RulingPlanetsTable rulingPlanets={result.rulingPlanets} />
+
+              {/* Verification: Our values vs ProKerala */}
+              <VerificationPanel
+                chartData={result.chart}
+                timestamp={result.timestamp}
+                location={location}
+              />
 
               {/* New Calculation button */}
               <button

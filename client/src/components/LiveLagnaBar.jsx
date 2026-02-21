@@ -92,6 +92,11 @@ export default function LiveLagnaBar({ location }) {
             <div className="text-white/30 text-xs">
               {formatDeg(lagnaData.degreeInSign)} &middot; {lang === 'mr' ? lagnaData.nakshatra?.mr : lagnaData.nakshatra?.en}
             </div>
+            {lagnaData.moonNakshatra && (
+              <div className="text-saffron/50 text-xs">
+                {lang === 'mr' ? 'चंद्र' : 'Moon'}: {lang === 'mr' ? lagnaData.moonNakshatra?.mr : lagnaData.moonNakshatra?.en}
+              </div>
+            )}
           </div>
         </div>
 
