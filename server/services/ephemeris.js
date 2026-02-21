@@ -102,8 +102,27 @@ const BODY_MAP = {
   saturn: 'Saturn',
 };
 
+// Convert Julian Day to astronomy-engine AstroTime
+// MakeTime(number) expects UT days since J2000, NOT raw Julian Day
+function jdToAstroTime(julianDay) {
+  return Astronomy.MakeTime(julianDay - 2451545.0);
+}
+
+// Get geocentric tropical ecliptic longitude for any body
+function getGeocentricLongitude(bodyName, time) {
+  if (bodyName === 'Sun') {
+    return Astronomy.SunPosition(time).elon;
+  }
+  if (bodyName === 'Moon') {
+    const geo = Astronomy.GeoMoon(time);
+    return Astronomy.Ecliptic(geo).elon;
+  }
+  // Planets: use GeoVector for geocentric position (not heliocentric EclipticLongitude)
+  const geo = Astronomy.GeoVector(bodyName, time, true);
+  return Astronomy.Ecliptic(geo).elon;
+}
+
 function calcPlanetPosition(julianDay, planetName) {
-  const date = Astronomy.MakeTime(julianDay);
   const ayanamsa = getAyanamsa(julianDay);
 
   if (planetName === 'rahu') {
@@ -116,7 +135,7 @@ function calcPlanetPosition(julianDay, planetName) {
       longitude: sidereal,
       latitude: 0,
       distance: 0,
-      speedLong: -0.053, // mean daily motion ~-3'/day
+      speedLong: -0.053,
       isRetrograde: true,
     };
   }
@@ -135,27 +154,28 @@ function calcPlanetPosition(julianDay, planetName) {
   const bodyName = BODY_MAP[planetName];
   if (!bodyName) throw new Error(`Unknown planet: ${planetName}`);
 
-  // Get ecliptic longitude using astronomy-engine
-  let tropLong, tropLongPlus, lat = 0, dist = 0;
+  const time = jdToAstroTime(julianDay);
+  const timePlus = jdToAstroTime(julianDay + 1 / 24);
 
+  // Geocentric tropical ecliptic longitude
+  const tropLong = getGeocentricLongitude(bodyName, time);
+  const tropLongPlus = getGeocentricLongitude(bodyName, timePlus);
+
+  // Get latitude and distance
+  let lat = 0, dist = 1.0;
   if (planetName === 'sun') {
-    // Sun: use SunPosition (EclipticLongitude doesn't work for Sun)
-    const sunPos = Astronomy.SunPosition(date);
-    tropLong = sunPos.elon;
-    const datePlus = Astronomy.MakeTime(julianDay + 1 / 24);
-    tropLongPlus = Astronomy.SunPosition(datePlus).elon;
+    const sunPos = Astronomy.SunPosition(time);
     lat = sunPos.elat;
-    dist = sunPos.vec ? sunPos.vec.Length() : 1.0;
-  } else {
-    tropLong = Astronomy.EclipticLongitude(bodyName, date);
-    const datePlus = Astronomy.MakeTime(julianDay + 1 / 24);
-    tropLongPlus = Astronomy.EclipticLongitude(bodyName, datePlus);
-    // Get latitude via geocentric equatorial → ecliptic conversion
-    const observer = new Astronomy.Observer(0, 0, 0);
-    const eqj = Astronomy.Equator(bodyName, date, observer, false, true);
-    const ecl = Astronomy.Ecliptic(eqj.vec);
+  } else if (planetName === 'moon') {
+    const geo = Astronomy.GeoMoon(time);
+    const ecl = Astronomy.Ecliptic(geo);
     lat = ecl.elat;
-    dist = eqj.dist;
+    dist = geo.Length();
+  } else {
+    const geo = Astronomy.GeoVector(bodyName, time, true);
+    const ecl = Astronomy.Ecliptic(geo);
+    lat = ecl.elat;
+    dist = geo.Length();
   }
 
   const sidereal = ((tropLong - ayanamsa) % 360 + 360) % 360;
