@@ -1,111 +1,190 @@
-const swisseph = require('swisseph');
-const { SWE_PLANETS } = require('../data/constants');
-
-// Set KP (Krishnamurti) Ayanamsa
-swisseph.swe_set_sid_mode(swisseph.SE_SIDM_KRISHNAMURTI, 0, 0);
-
 /**
- * Convert a JS Date to Julian Day Number
+ * Pure JavaScript ephemeris engine using astronomy-engine.
+ * No native C bindings — works on Vercel serverless, any platform.
+ * Uses KP (Krishnamurti) Ayanamsa for sidereal calculations.
  */
+const Astronomy = require('astronomy-engine');
+
+const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
+
+// ── Julian Day ──────────────────────────────────────────────
 function dateToJulianDay(date) {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() + 1;
-  const day = date.getUTCDate();
-  const hour = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth() + 1;
+  const d = date.getUTCDate();
+  const h = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
 
-  const result = swisseph.swe_julday(year, month, day, hour, swisseph.SE_GREG_CAL);
-  return result;
+  let Y = y, M = m;
+  if (M <= 2) { Y--; M += 12; }
+  const A = Math.floor(Y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  return Math.floor(365.25 * (Y + 4716)) + Math.floor(30.6001 * (M + 1)) + d + h / 24 + B - 1524.5;
 }
 
-/**
- * Calculate sidereal planet position
- * Returns { longitude, latitude, distance, speedLong, speedLat, speedDist }
- */
-function calcPlanetPosition(julianDay, planetId) {
-  const flags = swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SIDEREAL | swisseph.SEFLG_SPEED;
-  const result = swisseph.swe_calc_ut(julianDay, planetId, flags);
-
-  if (result.error) {
-    throw new Error(`Swiss Ephemeris error for planet ${planetId}: ${result.error}`);
-  }
-
-  return {
-    longitude: result.longitude,
-    latitude: result.latitude,
-    distance: result.distance,
-    speedLong: result.longitudeSpeed,
-    isRetrograde: result.longitudeSpeed < 0,
-  };
+// ── KP (Krishnamurti) Ayanamsa ─────────────────────────────
+// Based on Swiss Ephemeris SE_SIDM_KRISHNAMURTI:
+//   epoch t0 = J1900 (JD 2415020.0), ayan_t0 = 22.362833°
+//   Uses IAU precession in longitude.
+function getAyanamsa(julianDay) {
+  const T = (julianDay - 2415020.0) / 36525; // Julian centuries from J1900
+  // IAU precession in longitude (arcseconds)
+  const psi = 5029.0966 * T + 1.11113 * T * T - 0.000006 * T * T * T;
+  return 22.362833 + psi / 3600;
 }
 
-/**
- * Calculate house cusps and ascendant (SIDEREAL using KP Ayanamsa)
- * swe_houses() returns TROPICAL values only — we must subtract the ayanamsa
- * to convert to sidereal coordinates.
- * Returns { ascendant, mc, houses[] }
- */
+// ── Obliquity of ecliptic ───────────────────────────────────
+function obliquity(jd) {
+  const T = (jd - 2451545.0) / 36525; // centuries from J2000
+  // IAU formula (arcseconds)
+  const eps = 84381.448 - 46.8150 * T - 0.00059 * T * T + 0.001813 * T * T * T;
+  return eps / 3600; // degrees
+}
+
+// ── Greenwich Mean Sidereal Time (degrees) ──────────────────
+function gmst(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  // IAU formula (seconds of time)
+  let theta = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T - T * T * T / 38710000;
+  return ((theta % 360) + 360) % 360;
+}
+
+// ── Tropical Ascendant ──────────────────────────────────────
+function calcTropicalAscendant(jd, latitude, longitude) {
+  const eps = obliquity(jd) * DEG;
+  const lst = ((gmst(jd) + longitude) % 360 + 360) % 360; // local sidereal time in degrees
+  const ramc = lst * DEG; // RAMC in radians
+  const phi = latitude * DEG;
+
+  // Ascendant formula:
+  // tan(ASC) = cos(RAMC) / -(sin(eps)*tan(phi) + cos(eps)*sin(RAMC))
+  const y = Math.cos(ramc);
+  const x = -(Math.sin(eps) * Math.tan(phi) + Math.cos(eps) * Math.sin(ramc));
+  let asc = Math.atan2(y, x) * RAD;
+  asc = ((asc % 360) + 360) % 360;
+
+  // MC
+  let mc = Math.atan2(Math.sin(ramc), Math.cos(ramc) * Math.cos(eps)) * RAD;
+  mc = ((mc % 360) + 360) % 360;
+
+  return { ascendant: asc, mc, lst };
+}
+
+// ── House cusps (equal house from ascendant) ────────────────
 function calcHouses(julianDay, latitude, longitude) {
-  // swe_houses always returns tropical — no sidereal flag support
-  const result = swisseph.swe_houses(julianDay, latitude, longitude, 'P');
+  const trop = calcTropicalAscendant(julianDay, latitude, longitude);
+  const ayanamsa = getAyanamsa(julianDay);
 
-  if (result.error) {
-    throw new Error(`Swiss Ephemeris houses error: ${result.error}`);
+  const toSidereal = (tropDeg) => ((tropDeg - ayanamsa) % 360 + 360) % 360;
+
+  // Equal houses: each cusp is 30° apart from ascendant
+  const tropAsc = trop.ascendant;
+  const houses = [];
+  for (let i = 0; i < 12; i++) {
+    houses.push(toSidereal((tropAsc + i * 30) % 360));
   }
 
-  // Get KP ayanamsa and subtract from all tropical values to get sidereal
-  const ayanamsa = swisseph.swe_get_ayanamsa_ut(julianDay);
-
-  const toSidereal = (tropicalDeg) => {
-    return ((tropicalDeg - ayanamsa) % 360 + 360) % 360;
-  };
-
   return {
-    ascendant: toSidereal(result.ascendant),
-    mc: toSidereal(result.mc),
-    houses: result.house.map(toSidereal),
+    ascendant: toSidereal(tropAsc),
+    mc: toSidereal(trop.mc),
+    houses,
   };
 }
 
-/**
- * Get all planet positions at a given moment
- */
+// ── Planet positions (sidereal) ─────────────────────────────
+const BODY_MAP = {
+  sun: 'Sun',
+  moon: 'Moon',
+  mars: 'Mars',
+  mercury: 'Mercury',
+  jupiter: 'Jupiter',
+  venus: 'Venus',
+  saturn: 'Saturn',
+};
+
+function calcPlanetPosition(julianDay, planetName) {
+  const date = Astronomy.MakeTime(julianDay);
+  const ayanamsa = getAyanamsa(julianDay);
+
+  if (planetName === 'rahu') {
+    // Mean longitude of the ascending node (Rahu)
+    const T = (julianDay - 2451545.0) / 36525;
+    let omega = 125.04452 - 1934.136261 * T + 0.0020708 * T * T + T * T * T / 450000;
+    omega = ((omega % 360) + 360) % 360;
+    const sidereal = ((omega - ayanamsa) % 360 + 360) % 360;
+    return {
+      longitude: sidereal,
+      latitude: 0,
+      distance: 0,
+      speedLong: -0.053, // mean daily motion ~-3'/day
+      isRetrograde: true,
+    };
+  }
+
+  if (planetName === 'ketu') {
+    const rahuPos = calcPlanetPosition(julianDay, 'rahu');
+    return {
+      longitude: (rahuPos.longitude + 180) % 360,
+      latitude: 0,
+      distance: 0,
+      speedLong: rahuPos.speedLong,
+      isRetrograde: true,
+    };
+  }
+
+  const bodyName = BODY_MAP[planetName];
+  if (!bodyName) throw new Error(`Unknown planet: ${planetName}`);
+
+  // Get ecliptic longitude using astronomy-engine
+  let tropLong, tropLongPlus, lat = 0, dist = 0;
+
+  if (planetName === 'sun') {
+    // Sun: use SunPosition (EclipticLongitude doesn't work for Sun)
+    const sunPos = Astronomy.SunPosition(date);
+    tropLong = sunPos.elon;
+    const datePlus = Astronomy.MakeTime(julianDay + 1 / 24);
+    tropLongPlus = Astronomy.SunPosition(datePlus).elon;
+    lat = sunPos.elat;
+    dist = sunPos.vec ? sunPos.vec.Length() : 1.0;
+  } else {
+    tropLong = Astronomy.EclipticLongitude(bodyName, date);
+    const datePlus = Astronomy.MakeTime(julianDay + 1 / 24);
+    tropLongPlus = Astronomy.EclipticLongitude(bodyName, datePlus);
+    // Get latitude via geocentric equatorial → ecliptic conversion
+    const observer = new Astronomy.Observer(0, 0, 0);
+    const eqj = Astronomy.Equator(bodyName, date, observer, false, true);
+    const ecl = Astronomy.Ecliptic(eqj.vec);
+    lat = ecl.elat;
+    dist = eqj.dist;
+  }
+
+  const sidereal = ((tropLong - ayanamsa) % 360 + 360) % 360;
+
+  // Compute speed for retrograde detection
+  let speed = (tropLongPlus - tropLong) * 24; // degrees per day
+  if (speed > 180) speed -= 360;
+  if (speed < -180) speed += 360;
+
+  return {
+    longitude: sidereal,
+    latitude: lat,
+    distance: dist,
+    speedLong: speed,
+    isRetrograde: speed < 0,
+  };
+}
+
+// ── All planet positions ────────────────────────────────────
 function getAllPlanetPositions(julianDay) {
+  const planets = ['sun', 'moon', 'mars', 'mercury', 'jupiter', 'venus', 'saturn', 'rahu', 'ketu'];
   const positions = {};
-
-  for (const [name, id] of Object.entries(SWE_PLANETS)) {
-    if (name === 'ketu') {
-      // Ketu is always 180° from Rahu
-      const rahuPos = positions.rahu;
-      positions.ketu = {
-        longitude: (rahuPos.longitude + 180) % 360,
-        latitude: -rahuPos.latitude,
-        distance: rahuPos.distance,
-        speedLong: rahuPos.speedLong,
-        isRetrograde: true, // Ketu is always retrograde
-      };
-    } else {
-      positions[name] = calcPlanetPosition(julianDay, id);
-    }
+  for (const name of planets) {
+    positions[name] = calcPlanetPosition(julianDay, name);
   }
-
-  // Rahu is also always retrograde
-  if (positions.rahu) {
-    positions.rahu.isRetrograde = true;
-  }
-
   return positions;
 }
 
-/**
- * Get the KP ayanamsa value for a given Julian Day
- */
-function getAyanamsa(julianDay) {
-  return swisseph.swe_get_ayanamsa_ut(julianDay);
-}
-
-/**
- * Master function: calculate everything needed for Prashna Kundali
- */
+// ── Master chart calculation ────────────────────────────────
 function calculateChart(date, latitude, longitude) {
   const jd = dateToJulianDay(date);
   const houses = calcHouses(jd, latitude, longitude);
@@ -125,15 +204,11 @@ function calculateChart(date, latitude, longitude) {
   };
 }
 
-/**
- * Calculate full lagna timing: when current lagna started, when it ends,
- * and what the next lagna will be.
- * Steps backward to find start, forward to find end.
- */
+// ── Lagna change timing ─────────────────────────────────────
 function calculateLagnaChangeTiming(date, latitude, longitude) {
-  const NAKSHATRA_SPAN = 13 + 20 / 60; // 13°20'
-  const STEP_SECONDS = 60; // 1-minute steps
-  const MAX_STEPS = 300; // 5 hours max
+  const NAKSHATRA_SPAN = 13 + 20 / 60;
+  const STEP_SECONDS = 60;
+  const MAX_STEPS = 300;
 
   const jd = dateToJulianDay(date);
   const houses = calcHouses(jd, latitude, longitude);
@@ -142,23 +217,20 @@ function calculateLagnaChangeTiming(date, latitude, longitude) {
   const currentSignIndex = Math.floor(currentAsc / 30);
   const currentNakIndex = Math.floor(currentAsc / NAKSHATRA_SPAN);
 
-  // --- Step BACKWARD to find when current lagna sign started ---
+  // Step BACKWARD to find when current lagna sign started
   let lagnaStartTime = null;
   for (let step = 1; step <= MAX_STEPS; step++) {
     const pastDate = new Date(date.getTime() - step * STEP_SECONDS * 1000);
     const pastJd = dateToJulianDay(pastDate);
     const pastHouses = calcHouses(pastJd, latitude, longitude);
     const pastAsc = ((pastHouses.ascendant % 360) + 360) % 360;
-    const pastSignIndex = Math.floor(pastAsc / 30);
-
-    if (pastSignIndex !== currentSignIndex) {
-      // The sign changed between pastDate and pastDate + 1 min
+    if (Math.floor(pastAsc / 30) !== currentSignIndex) {
       lagnaStartTime = new Date(pastDate.getTime() + STEP_SECONDS * 1000);
       break;
     }
   }
 
-  // --- Step FORWARD to find when current lagna sign ends ---
+  // Step FORWARD to find when current lagna sign ends
   let lagnaEndTime = null;
   let nextSignIndex = null;
   for (let step = 1; step <= MAX_STEPS; step++) {
@@ -167,7 +239,6 @@ function calculateLagnaChangeTiming(date, latitude, longitude) {
     const futureHouses = calcHouses(futureJd, latitude, longitude);
     const futureAsc = ((futureHouses.ascendant % 360) + 360) % 360;
     const futureSignIndex = Math.floor(futureAsc / 30);
-
     if (futureSignIndex !== currentSignIndex) {
       lagnaEndTime = futureDate;
       nextSignIndex = futureSignIndex;
@@ -175,7 +246,7 @@ function calculateLagnaChangeTiming(date, latitude, longitude) {
     }
   }
 
-  // --- Step FORWARD to find next nakshatra change ---
+  // Step FORWARD to find next nakshatra change
   let nextNakChangeTime = null;
   let nextNakIndex = null;
   for (let step = 1; step <= MAX_STEPS; step++) {
@@ -183,32 +254,25 @@ function calculateLagnaChangeTiming(date, latitude, longitude) {
     const futureJd = dateToJulianDay(futureDate);
     const futureHouses = calcHouses(futureJd, latitude, longitude);
     const futureAsc = ((futureHouses.ascendant % 360) + 360) % 360;
-    const futureNakIndex = Math.floor(futureAsc / NAKSHATRA_SPAN);
-
-    if (futureNakIndex !== currentNakIndex) {
+    if (Math.floor(futureAsc / NAKSHATRA_SPAN) !== currentNakIndex) {
       nextNakChangeTime = futureDate;
-      nextNakIndex = futureNakIndex;
+      nextNakIndex = Math.floor(futureAsc / NAKSHATRA_SPAN);
       break;
     }
   }
 
-  // The earliest ruling-planet change is whichever comes first: sign or nakshatra
   let nextChange = null;
   let nextChangeType = null;
   if (lagnaEndTime && nextNakChangeTime) {
     if (lagnaEndTime <= nextNakChangeTime) {
-      nextChange = lagnaEndTime;
-      nextChangeType = 'sign';
+      nextChange = lagnaEndTime; nextChangeType = 'sign';
     } else {
-      nextChange = nextNakChangeTime;
-      nextChangeType = 'nakshatra';
+      nextChange = nextNakChangeTime; nextChangeType = 'nakshatra';
     }
   } else if (lagnaEndTime) {
-    nextChange = lagnaEndTime;
-    nextChangeType = 'sign';
+    nextChange = lagnaEndTime; nextChangeType = 'sign';
   } else if (nextNakChangeTime) {
-    nextChange = nextNakChangeTime;
-    nextChangeType = 'nakshatra';
+    nextChange = nextNakChangeTime; nextChangeType = 'nakshatra';
   }
 
   return {
