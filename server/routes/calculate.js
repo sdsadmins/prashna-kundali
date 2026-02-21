@@ -76,6 +76,7 @@ router.post('/', (req, res) => {
       },
       rulingPlanets: rulingPlanets.map((rp) => ({
         slot: rp.slot,
+        label: rp.label,
         slotEn: rp.slotEn,
         slotMr: rp.slotMr,
         planetKey: rp.planetKey,

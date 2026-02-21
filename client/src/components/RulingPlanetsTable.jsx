@@ -33,7 +33,7 @@ export default function RulingPlanetsTable({ rulingPlanets }) {
                   rp.skipped ? 'opacity-40' : 'hover:bg-white/5'
                 }`}
               >
-                <td className="py-3 px-3 text-gold/50">{i + 1}</td>
+                <td className="py-3 px-3 text-gold/50 font-bold">{rp.label || (i + 1)}</td>
                 <td className="py-3 px-3">
                   {rp.skipped ? (
                     <span className="inline-flex items-center gap-1 text-red-400 text-xs bg-red-400/10 px-2 py-0.5 rounded-full">

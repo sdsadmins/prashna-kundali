@@ -15,6 +15,62 @@ function getOrdinalMr(n) {
 }
 
 /**
+ * Sum the digits of a number
+ * @param {number} n - positive integer
+ * @returns {number} - sum of digits
+ */
+function sumOfDigits(n) {
+  let sum = 0;
+  let num = Math.abs(n);
+  while (num > 0) {
+    sum += num % 10;
+    num = Math.floor(num / 10);
+  }
+  return sum;
+}
+
+/**
+ * Smart digit sum reduction with stop-early logic
+ * Reduces by digit sum, but stops if the next step would go below preferences count.
+ * For 10+ preferences, no reduction is applied (returns total as-is).
+ *
+ * @param {number} total - total Ank value
+ * @param {number} preferences - number of preferences (2+)
+ * @returns {{ reducedAnk: number, steps: Array, applied: boolean, stoppedEarly: boolean }}
+ */
+function smartReduce(total, preferences) {
+  const steps = [];
+
+  // For 10+ preferences, never reduce
+  if (preferences >= 10) {
+    return { reducedAnk: total, steps, applied: false, stoppedEarly: false };
+  }
+
+  let current = total;
+
+  while (current >= 10) {
+    const next = sumOfDigits(current);
+    const digits = String(current).split('').join('+');
+
+    if (next < preferences) {
+      // Stop early: further reduction would go below preferences
+      steps.push({ from: current, digits, to: next, stopped: true });
+      break;
+    }
+
+    steps.push({ from: current, digits, to: next, stopped: false });
+    current = next;
+  }
+
+  return {
+    reducedAnk: current,
+    steps,
+    applied: steps.length > 0 && !steps[steps.length - 1]?.stopped,
+    stoppedEarly: steps.length > 0 && steps[steps.length - 1]?.stopped,
+  };
+}
+
+/**
  * Calculate the Prashna answer using Ank Shastra method
  * @param {Array} rulingPlanets - processed ruling planets from rulingPlanets.js
  * @param {number} optionsCount - number of options (minimum 2)
@@ -29,9 +85,9 @@ function calculateAnswer(rulingPlanets, optionsCount) {
   const steps = [];
   let totalAnk = 0;
 
-  rulingPlanets.forEach((rp, index) => {
+  rulingPlanets.forEach((rp) => {
     const step = {
-      index: index + 1,
+      label: rp.label,
       slotEn: rp.slotEn,
       slotMr: rp.slotMr,
       planetEn: rp.planet.en,
@@ -50,28 +106,39 @@ function calculateAnswer(rulingPlanets, optionsCount) {
     totalAnk += rp.ank;
   });
 
+  // Digit sum reduction (smart: stop early if result < preferences)
+  const digitReduction = smartReduce(totalAnk, optionsCount);
+  const dividend = digitReduction.reducedAnk;
+
   // Division and remainder
-  const remainder = totalAnk % optionsCount;
+  const remainder = dividend % optionsCount;
   const answerOption = remainder === 0 ? optionsCount : remainder;
+  const quotient = Math.floor(dividend / optionsCount);
+
+  // Build explanation strings
+  const reductionNote = digitReduction.steps.length > 0
+    ? digitReduction.steps.map(s => `${s.digits}=${s.to}`).join(', ')
+    : '';
 
   return {
     steps,
     totalAnk,
     optionsCount,
+    digitReduction,
     division: {
-      dividend: totalAnk,
+      dividend,
       divisor: optionsCount,
-      quotient: Math.floor(totalAnk / optionsCount),
+      quotient,
       remainder,
     },
     answerOption,
     answerExplanation: {
       en: remainder === 0
-        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = 0 → Last Preference (${optionsCount})`
-        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = ${remainder} → ${getOrdinalEn(remainder)} Preference`,
+        ? `${dividend} ÷ ${optionsCount} = ${quotient}, Remainder = 0 → Last Preference (${optionsCount})`
+        : `${dividend} ÷ ${optionsCount} = ${quotient}, Remainder = ${remainder} → ${getOrdinalEn(remainder)} Preference`,
       mr: remainder === 0
-        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ० → शेवटची पसंती (${optionsCount})`
-        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ${remainder} → ${getOrdinalMr(remainder)} पसंती`,
+        ? `${dividend} ÷ ${optionsCount} = ${quotient}, बाकी = ० → शेवटची पसंती (${optionsCount})`
+        : `${dividend} ÷ ${optionsCount} = ${quotient}, बाकी = ${remainder} → ${getOrdinalMr(remainder)} पसंती`,
     },
   };
 }

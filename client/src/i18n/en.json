@@ -59,5 +59,6 @@
   "ordinal1": "1st",
   "ordinal2": "2nd",
   "ordinal3": "3rd",
-  "ordinalN": "th"
+  "ordinalN": "th",
+  "digitSum": "Digit Sum"
 }

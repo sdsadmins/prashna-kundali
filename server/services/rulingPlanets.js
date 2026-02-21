@@ -76,11 +76,14 @@ function calculateRulingPlanets(chartData) {
   const lagnaSign = getSignFromDegree(ascendant);
   const lagnaSignLord = lagnaSign.lord;
 
-  // 2. Lagna Nakshatra Lord
-  const lagnaNakshatra = getNakshatraFromDegree(ascendant);
-  const lagnaNakshatraLord = lagnaNakshatra.lord;
+  // 2. Star (Moon Nakshatra Lord) — "S" in LSRD
+  const moonNakshatra = getNakshatraFromDegree(planets.moon.longitude);
+  const moonNakshatraLord = moonNakshatra.lord;
 
-  // 3. Moon Sign Lord
+  // Also compute lagna nakshatra for display purposes
+  const lagnaNakshatra = getNakshatraFromDegree(ascendant);
+
+  // 3. Rashi (Moon Sign Lord) — "R" in LSRD
   const moonSign = getSignFromDegree(planets.moon.longitude);
   const moonSignLord = moonSign.lord;
 
@@ -93,6 +96,7 @@ function calculateRulingPlanets(chartData) {
   const rulingPlanets = [
     {
       slot: 'lagnaSign',
+      label: 'L',
       slotEn: 'Lagna Sign Lord',
       slotMr: 'लग्न राशी स्वामी',
       planetKey: lagnaSignLord,
@@ -101,17 +105,19 @@ function calculateRulingPlanets(chartData) {
       degree: ascendant,
     },
     {
-      slot: 'lagnaNakshatra',
-      slotEn: 'Lagna Nakshatra Lord',
-      slotMr: 'लग्न नक्षत्र स्वामी',
-      planetKey: lagnaNakshatraLord,
-      planet: PLANETS[lagnaNakshatraLord],
-      nakshatra: lagnaNakshatra.nakshatra,
-      pada: lagnaNakshatra.pada,
-      degree: ascendant,
+      slot: 'moonNakshatra',
+      label: 'S',
+      slotEn: 'Moon Nakshatra Lord',
+      slotMr: 'चंद्र नक्षत्र स्वामी',
+      planetKey: moonNakshatraLord,
+      planet: PLANETS[moonNakshatraLord],
+      nakshatra: moonNakshatra.nakshatra,
+      pada: moonNakshatra.pada,
+      degree: planets.moon.longitude,
     },
     {
       slot: 'moonSign',
+      label: 'R',
       slotEn: 'Moon Sign Lord',
       slotMr: 'चंद्र राशी स्वामी',
       planetKey: moonSignLord,
@@ -121,6 +127,7 @@ function calculateRulingPlanets(chartData) {
     },
     {
       slot: 'dayLord',
+      label: 'D',
       slotEn: 'Day Lord',
       slotMr: 'वार स्वामी',
       planetKey: dayLord,
