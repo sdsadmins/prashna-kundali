@@ -45,3 +45,35 @@ body {
 .pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Splash screen */
+@keyframes splash-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.splash-ring {
+  border: 1px solid rgba(212, 160, 23, 0.12);
+  border-top: 1.5px solid rgba(212, 160, 23, 0.5);
+  border-radius: 50%;
+  animation: splash-spin 3s linear infinite;
+}
+
+.splash-ring-outer {
+  border: 1px solid rgba(212, 160, 23, 0.06);
+  border-bottom: 1.5px solid rgba(212, 160, 23, 0.25);
+  border-radius: 50%;
+  animation: splash-spin 5s linear infinite reverse;
+}
+
+@keyframes splash-orbit {
+  0% { opacity: 0; transform: rotate(var(--angle)) translateX(var(--radius)) scale(0); }
+  15% { opacity: 1; transform: rotate(var(--angle)) translateX(var(--radius)) scale(1); }
+  85% { opacity: 0.4; transform: rotate(calc(var(--angle) + 100deg)) translateX(var(--radius)) scale(0.6); }
+  100% { opacity: 0; transform: rotate(calc(var(--angle) + 120deg)) translateX(var(--radius)) scale(0); }
+}
+
+.splash-particle {
+  animation: splash-orbit 3.5s ease-in-out infinite;
+  animation-delay: var(--delay);
+}

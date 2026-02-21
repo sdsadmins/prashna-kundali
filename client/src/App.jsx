@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { I18nProvider, useI18n } from './i18n/useI18n';
+import SplashScreen from './components/SplashScreen';
 import LanguageToggle from './components/LanguageToggle';
 import QuestionForm from './components/QuestionForm';
 import KundaliChart3D from './components/KundaliChart3D';
@@ -191,8 +192,12 @@ function AppContent() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  const handleSplashComplete = useCallback(() => setShowSplash(false), []);
+
   return (
     <I18nProvider>
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
       <AppContent />
     </I18nProvider>
   );
