@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gold: #d4a017;
+  --color-gold-light: #f0d060;
+  --color-deep-purple: #1a0533;
+  --color-cosmic-blue: #0a1628;
+  --color-saffron: #ff6b35;
+  --color-sacred-red: #c0392b;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(135deg, var(--color-cosmic-blue) 0%, var(--color-deep-purple) 50%, #0d0d2b 100%);
+  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #e8e8e8;
+}
+
+.glow-text {
+  text-shadow: 0 0 10px rgba(212, 160, 23, 0.5), 0 0 20px rgba(212, 160, 23, 0.3);
+}
+
+.card-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(212, 160, 23, 0.2);
+  border-radius: 12px;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(212, 160, 23, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(212, 160, 23, 0.6), 0 0 40px rgba(212, 160, 23, 0.2); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
