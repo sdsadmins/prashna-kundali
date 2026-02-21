@@ -1,5 +1,5 @@
 // Vercel serverless function wrapping the calculation logic
-const { calculateChart } = require('../server/services/ephemeris');
+const { calculateChart, calculateLagnaChangeTiming } = require('../server/services/ephemeris');
 const { calculateRulingPlanets } = require('../server/services/rulingPlanets');
 const { calculateAnswer } = require('../server/services/ankShastra');
 const { PLANETS } = require('../server/data/constants');
@@ -33,6 +33,9 @@ module.exports = (req, res) => {
     const chartData = calculateChart(now, parseFloat(latitude), parseFloat(longitude));
     const { rulingPlanets, details } = calculateRulingPlanets(chartData);
     const calculation = calculateAnswer(rulingPlanets, parseInt(optionsCount));
+
+    // Calculate when lagna will change
+    const lagnaChangeTiming = calculateLagnaChangeTiming(now, parseFloat(latitude), parseFloat(longitude));
 
     // Build planet positions for chart display
     const planetHouses = {};
@@ -88,6 +91,20 @@ module.exports = (req, res) => {
       })),
       details,
       calculation,
+      lagnaInfo: {
+        degree: lagnaChangeTiming.currentDegree,
+        degreeInSign: lagnaChangeTiming.degreeInSign,
+        sign: details.lagnaSign,
+        nakshatra: details.lagnaNakshatra,
+        pada: details.lagnaPada,
+        nextSignChange: lagnaChangeTiming.nextSignChange,
+        nextSignChangeMinutes: lagnaChangeTiming.nextSignChangeMinutes,
+        nextNakshatraChange: lagnaChangeTiming.nextNakshatraChange,
+        nextNakshatraChangeMinutes: lagnaChangeTiming.nextNakshatraChangeMinutes,
+        nextChange: lagnaChangeTiming.nextChange,
+        nextChangeType: lagnaChangeTiming.nextChangeType,
+        nextChangeMinutes: lagnaChangeTiming.nextChangeMinutes,
+      },
     });
   } catch (error) {
     console.error('Calculation error:', error);

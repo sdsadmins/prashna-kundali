@@ -3,6 +3,17 @@
  * Takes ruling planets and number of options, returns the answer
  */
 
+function getOrdinalEn(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function getOrdinalMr(n) {
+  const map = { 1: '१ली', 2: '२री', 3: '३री', 4: '४थी', 5: '५वी', 6: '६वी', 7: '७वी', 8: '८वी', 9: '९वी', 10: '१०वी', 11: '११वी', 12: '१२वी' };
+  return map[n] || `${n}वी`;
+}
+
 /**
  * Calculate the Prashna answer using Ank Shastra method
  * @param {Array} rulingPlanets - processed ruling planets from rulingPlanets.js
@@ -56,11 +67,11 @@ function calculateAnswer(rulingPlanets, optionsCount) {
     answerOption,
     answerExplanation: {
       en: remainder === 0
-        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = 0 → Last option (Option ${optionsCount})`
-        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = ${remainder} → Option ${remainder}`,
+        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = 0 → Last Preference (${optionsCount})`
+        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, Remainder = ${remainder} → ${getOrdinalEn(remainder)} Preference`,
       mr: remainder === 0
-        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ० → शेवटचा पर्याय (पर्याय ${optionsCount})`
-        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ${remainder} → पर्याय ${remainder}`,
+        ? `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ० → शेवटची पसंती (${optionsCount})`
+        : `${totalAnk} ÷ ${optionsCount} = ${Math.floor(totalAnk / optionsCount)}, बाकी = ${remainder} → ${getOrdinalMr(remainder)} पसंती`,
     },
   };
 }

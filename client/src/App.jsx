@@ -6,6 +6,8 @@ import KundaliChart3D from './components/KundaliChart3D';
 import RulingPlanetsTable from './components/RulingPlanetsTable';
 import CalculationBreakdown from './components/CalculationBreakdown';
 import AnswerDisplay from './components/AnswerDisplay';
+import LagnaInfo from './components/LagnaInfo';
+import LiveLagnaBar from './components/LiveLagnaBar';
 import { getCurrentPosition } from './utils/geolocation';
 import './index.css';
 
@@ -96,6 +98,13 @@ function AppContent() {
         {/* Before results: centered form */}
         {!result && (
           <div className="max-w-xl mx-auto px-4 py-8">
+            {/* Live Lagna indicator */}
+            {location && (
+              <div className="mb-6">
+                <LiveLagnaBar location={location} />
+              </div>
+            )}
+
             <QuestionForm onCalculate={handleCalculate} isLoading={isLoading} />
 
             {/* Empty state hint */}
@@ -129,6 +138,12 @@ function AppContent() {
 
             {/* Right panel: scrollable details */}
             <div className="lg:w-1/2 xl:w-2/5 h-full overflow-y-auto px-4 py-2 space-y-4">
+              {/* Lagna Info (degree, sign, time until change) */}
+              <LagnaInfo
+                lagnaInfo={result.lagnaInfo}
+                timestamp={result.timestamp}
+              />
+
               {/* Answer (first, most important) */}
               <AnswerDisplay
                 calculation={result.calculation}

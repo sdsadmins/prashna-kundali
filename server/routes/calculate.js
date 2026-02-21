@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { calculateChart } = require('../services/ephemeris');
+const { calculateChart, calculateLagnaChangeTiming } = require('../services/ephemeris');
 const { calculateRulingPlanets } = require('../services/rulingPlanets');
 const { calculateAnswer } = require('../services/ankShastra');
-const { SIGNS, PLANETS } = require('../data/constants');
+const { SIGNS, PLANETS, NAKSHATRAS } = require('../data/constants');
 const { getSignFromDegree } = require('../services/nakshatra');
 
 /**
@@ -33,6 +33,9 @@ router.post('/', (req, res) => {
 
     // Calculate answer using Ank Shastra
     const calculation = calculateAnswer(rulingPlanets, parseInt(optionsCount));
+
+    // Calculate when lagna will change (sign or nakshatra)
+    const lagnaChangeTiming = calculateLagnaChangeTiming(now, parseFloat(latitude), parseFloat(longitude));
 
     // Build planet positions for chart display (which house each planet is in)
     const planetHouses = {};
@@ -90,6 +93,22 @@ router.post('/', (req, res) => {
       })),
       details,
       calculation,
+      lagnaInfo: {
+        degree: lagnaChangeTiming.currentDegree,
+        degreeInSign: lagnaChangeTiming.degreeInSign,
+        sign: details.lagnaSign,
+        nakshatra: details.lagnaNakshatra,
+        pada: details.lagnaPada,
+        startTime: lagnaChangeTiming.lagnaStartTime,
+        endTime: lagnaChangeTiming.lagnaEndTime,
+        nextSign: lagnaChangeTiming.nextSignIndex !== null ? SIGNS[lagnaChangeTiming.nextSignIndex] : null,
+        nextSignChangeMinutes: lagnaChangeTiming.nextSignChangeMinutes,
+        nextNakshatraChange: lagnaChangeTiming.nextNakshatraChange,
+        nextNakshatraChangeMinutes: lagnaChangeTiming.nextNakshatraChangeMinutes,
+        nextChange: lagnaChangeTiming.nextChange,
+        nextChangeType: lagnaChangeTiming.nextChangeType,
+        nextChangeMinutes: lagnaChangeTiming.nextChangeMinutes,
+      },
     });
   } catch (error) {
     console.error('Calculation error:', error);

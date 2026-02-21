@@ -126,7 +126,7 @@ export default function QuestionForm({ onCalculate, isLoading }) {
                 placeholder={
                   questionType === 'yesno'
                     ? (i === 0 ? (lang === 'mr' ? 'हो' : 'Yes') : (lang === 'mr' ? 'नाही' : 'No'))
-                    : `${t('optionPlaceholder')} ${i + 1} — ${lang === 'mr' ? 'नाव लिहा' : 'enter label'}`
+                    : `${t('optionPlaceholder')} ${i + 1} — ${lang === 'mr' ? 'नाव लिहा' : 'enter name'}`
                 }
                 disabled={questionType === 'yesno'}
                 className={`flex-1 border rounded-lg px-3 py-2 text-white placeholder-white/30 focus:border-gold/50 focus:outline-none text-sm transition-all ${
