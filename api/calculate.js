@@ -4,8 +4,9 @@ const { calculateRulingPlanets } = require('../server/services/rulingPlanets');
 const { calculateAnswer } = require('../server/services/ankShastra');
 const { PLANETS } = require('../server/data/constants');
 const { getSignFromDegree, getNakshatraFromDegree } = require('../server/services/nakshatra');
+const { getCalculationsCollection } = require('../server/services/db');
 
-module.exports = (req, res) => {
+module.exports = async (req, res) => {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -58,7 +59,7 @@ module.exports = (req, res) => {
       housePositions[key] = { ...info, house: houseNum };
     }
 
-    res.status(200).json({
+    const responseData = {
       success: true,
       timestamp: now.toISOString(),
       location: { latitude, longitude },
@@ -115,7 +116,18 @@ module.exports = (req, res) => {
         moonPada: getNakshatraFromDegree(chartData.planets.moon.longitude).pada,
         moonDegree: chartData.planets.moon.longitude,
       },
-    });
+    };
+
+    // Save to database (non-blocking, don't fail the response if DB is down)
+    try {
+      const collection = await getCalculationsCollection();
+      const { success, ...dataToStore } = responseData;
+      await collection.insertOne({ ...dataToStore, createdAt: new Date() });
+    } catch (dbError) {
+      console.error('DB save error (non-fatal):', dbError.message);
+    }
+
+    res.status(200).json(responseData);
   } catch (error) {
     console.error('Calculation error:', error);
     res.status(500).json({ error: error.message });

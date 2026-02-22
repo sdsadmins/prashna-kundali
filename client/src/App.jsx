@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { I18nProvider, useI18n } from './i18n/useI18n';
 import SplashScreen from './components/SplashScreen';
 import LanguageToggle from './components/LanguageToggle';
@@ -10,6 +11,7 @@ import AnswerDisplay from './components/AnswerDisplay';
 import LagnaInfo from './components/LagnaInfo';
 import LiveLagnaBar from './components/LiveLagnaBar';
 import VerificationPanel from './components/VerificationPanel';
+import AdminPage from './pages/AdminPage';
 import { getCurrentPosition } from './utils/geolocation';
 import './index.css';
 
@@ -191,14 +193,27 @@ function AppContent() {
   );
 }
 
-export default function App() {
+function PrashnaPage() {
   const [showSplash, setShowSplash] = useState(true);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   return (
-    <I18nProvider>
+    <>
       {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
       <AppContent />
-    </I18nProvider>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <I18nProvider>
+        <Routes>
+          <Route path="/" element={<PrashnaPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+        </Routes>
+      </I18nProvider>
+    </BrowserRouter>
   );
 }
