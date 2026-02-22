@@ -52,8 +52,9 @@ function smartReduce(total, preferences) {
     const next = sumOfDigits(current);
     const digits = String(current).split('').join('+');
 
-    if (next < preferences) {
+    if (next < preferences && preferences > 2) {
       // Stop early: further reduction would go below preferences
+      // (skip for prefs=2: any single digit is valid for yes/no questions)
       steps.push({ from: current, digits, to: next, stopped: true });
       break;
     }
