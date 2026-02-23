@@ -17,7 +17,10 @@ function getDb() {
   return sql;
 }
 
+let dbInitialized = false;
+
 async function initDb() {
+  if (dbInitialized) return;
   const sql = getDb();
   await sql`
     CREATE TABLE IF NOT EXISTS calculations (
@@ -30,6 +33,7 @@ async function initDb() {
       data JSONB
     )
   `;
+  dbInitialized = true;
 }
 
 async function saveCalculation(calcData) {

@@ -118,16 +118,14 @@ module.exports = async (req, res) => {
       },
     };
 
-    // Save to database (non-blocking, don't fail the response if DB is down)
-    try {
-      await initDb();
-      const { success, ...dataToStore } = responseData;
-      await saveCalculation(dataToStore);
-    } catch (dbError) {
-      console.error('DB save error (non-fatal):', dbError.message);
-    }
-
+    // Send response immediately
     res.status(200).json(responseData);
+
+    // Save to database in background (don't block the response)
+    const { success, ...dataToStore } = responseData;
+    initDb()
+      .then(() => saveCalculation(dataToStore))
+      .catch((dbError) => console.error('DB save error (non-fatal):', dbError.message));
   } catch (error) {
     console.error('Calculation error:', error);
     res.status(500).json({ error: error.message });
