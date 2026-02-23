@@ -186,7 +186,15 @@ function Dashboard({ token, onLogout }) {
   };
 
   if (selectedCalc) {
-    return <CalcDetail calc={selectedCalc} onBack={() => setSelectedCalc(null)} />;
+    // Merge Postgres columns: top-level fields + data JSONB column
+    const merged = {
+      ...selectedCalc.data,
+      timestamp: selectedCalc.timestamp,
+      question: selectedCalc.question,
+      options: selectedCalc.options,
+      location: selectedCalc.location,
+    };
+    return <CalcDetail calc={merged} onBack={() => setSelectedCalc(null)} />;
   }
 
   return (
@@ -237,8 +245,8 @@ function Dashboard({ token, onLogout }) {
               <tbody>
                 {calculations.map((calc, i) => (
                   <tr
-                    key={calc._id}
-                    onClick={() => handleRowClick(calc._id)}
+                    key={calc.id}
+                    onClick={() => handleRowClick(calc.id)}
                     className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
                   >
                     <td className="py-3 px-3 text-white/30">
@@ -258,13 +266,13 @@ function Dashboard({ token, onLogout }) {
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gold/20 text-gold font-bold text-sm">
-                        {calc.calculation?.answerOption || '—'}
+                        {calc.answer_option || '—'}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-white/50 text-xs">
                       {lang === 'mr'
-                        ? calc.lagnaInfo?.sign?.mr
-                        : calc.lagnaInfo?.sign?.en}
+                        ? calc.lagna_sign?.mr
+                        : calc.lagna_sign?.en}
                     </td>
                   </tr>
                 ))}

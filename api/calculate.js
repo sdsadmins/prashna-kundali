@@ -4,7 +4,7 @@ const { calculateRulingPlanets } = require('../server/services/rulingPlanets');
 const { calculateAnswer } = require('../server/services/ankShastra');
 const { PLANETS } = require('../server/data/constants');
 const { getSignFromDegree, getNakshatraFromDegree } = require('../server/services/nakshatra');
-const { getCalculationsCollection } = require('../server/services/db');
+const { saveCalculation, initDb } = require('../server/services/db');
 
 module.exports = async (req, res) => {
   // CORS
@@ -120,9 +120,9 @@ module.exports = async (req, res) => {
 
     // Save to database (non-blocking, don't fail the response if DB is down)
     try {
-      const collection = await getCalculationsCollection();
+      await initDb();
       const { success, ...dataToStore } = responseData;
-      await collection.insertOne({ ...dataToStore, createdAt: new Date() });
+      await saveCalculation(dataToStore);
     } catch (dbError) {
       console.error('DB save error (non-fatal):', dbError.message);
     }
