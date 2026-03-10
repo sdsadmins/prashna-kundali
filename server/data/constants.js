@@ -81,6 +81,11 @@ const COMBUSTION_DEGREES = {
   saturn:  { direct: 15, retrograde: 15 },
 };
 
+// Vimshottari Dasha system (KP Horary)
+const VIMSHOTTARI_ORDER = ['ketu', 'venus', 'sun', 'moon', 'mars', 'rahu', 'jupiter', 'saturn', 'mercury'];
+const VIMSHOTTARI_YEARS = { ketu: 7, venus: 20, sun: 6, moon: 10, mars: 7, rahu: 18, jupiter: 16, saturn: 19, mercury: 17 };
+const VIMSHOTTARI_TOTAL = 120; // sum of all years
+
 // Swiss Ephemeris planet IDs
 const SWE_PLANETS = {
   sun:     0,  // SE_SUN
@@ -101,4 +106,7 @@ module.exports = {
   DAY_LORDS,
   COMBUSTION_DEGREES,
   SWE_PLANETS,
+  VIMSHOTTARI_ORDER,
+  VIMSHOTTARI_YEARS,
+  VIMSHOTTARI_TOTAL,
 };

@@ -5,6 +5,7 @@ const { calculateAnswer } = require('../server/services/ankShastra');
 const { PLANETS } = require('../server/data/constants');
 const { getSignFromDegree, getNakshatraFromDegree } = require('../server/services/nakshatra');
 const { saveCalculation, initDb } = require('../server/services/db');
+const { calculateKPHorary } = require('../server/services/kpHorary');
 
 module.exports = async (req, res) => {
   // CORS
@@ -21,11 +22,38 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { latitude, longitude, optionsCount, question, options } = req.body;
+    const { latitude, longitude, optionsCount, question, options, mode, horaryNumber, questionCategory } = req.body;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
     }
+    // ── KP Horary mode ──────────────────────────────────────
+    if (mode === 'kp') {
+      const num = parseInt(horaryNumber);
+      if (!num || num < 1 || num > 249) {
+        return res.status(400).json({ error: 'Horary number must be between 1 and 249' });
+      }
+      const category = questionCategory || 'general';
+      const now = new Date();
+      const kpResult = calculateKPHorary(num, now, parseFloat(latitude), parseFloat(longitude), category);
+      const responseData = {
+        success: true,
+        mode: 'kp',
+        timestamp: now.toISOString(),
+        location: { latitude, longitude },
+        question,
+        questionCategory: category,
+        ...kpResult,
+      };
+      res.status(200).json(responseData);
+      const { success: s, ...dataToStore } = responseData;
+      initDb()
+        .then(() => saveCalculation(dataToStore))
+        .catch((dbError) => console.error('DB save error (non-fatal):', dbError.message));
+      return;
+    }
+
+    // ── Ank Shastra mode (default) ──────────────────────────
     if (!optionsCount || optionsCount < 2) {
       return res.status(400).json({ error: 'At least 2 options are required' });
     }
@@ -61,6 +89,7 @@ module.exports = async (req, res) => {
 
     const responseData = {
       success: true,
+      mode: 'ank',
       timestamp: now.toISOString(),
       location: { latitude, longitude },
       question,

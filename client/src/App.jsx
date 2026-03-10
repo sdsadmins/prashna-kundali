@@ -8,6 +8,7 @@ import KundaliChart3D from './components/KundaliChart3D';
 import RulingPlanetsTable from './components/RulingPlanetsTable';
 import CalculationBreakdown from './components/CalculationBreakdown';
 import AnswerDisplay from './components/AnswerDisplay';
+import KPResultPanel from './components/KPResultPanel';
 import LagnaInfo from './components/LagnaInfo';
 import LiveLagnaBar from './components/LiveLagnaBar';
 import VerificationPanel from './components/VerificationPanel';
@@ -37,7 +38,7 @@ function AppContent() {
       });
   }, []);
 
-  const handleCalculate = async ({ question, options, optionsCount }) => {
+  const handleCalculate = async ({ question, options, optionsCount, mode, horaryNumber, questionCategory }) => {
     if (!location) return;
     setIsLoading(true);
     setResult(null);
@@ -52,6 +53,9 @@ function AppContent() {
           optionsCount,
           question,
           options,
+          mode,
+          horaryNumber,
+          questionCategory,
         }),
       });
       const data = await res.json();
@@ -154,49 +158,70 @@ function AppContent() {
 
             {/* Right panel: scrollable details */}
             <div className="lg:w-1/2 xl:w-2/5 h-full overflow-y-auto px-4 py-2 space-y-4">
-              {/* Lagna Info (degree, sign, time until change) */}
-              <LagnaInfo
-                lagnaInfo={result.lagnaInfo}
-                timestamp={result.timestamp}
-              />
+              {result.mode === 'kp' ? (
+                <>
+                  <KPResultPanel result={result} />
 
-              {/* Answer (first, most important) */}
-              <AnswerDisplay
-                calculation={result.calculation}
-                options={result.options}
-                question={result.question}
-              />
+                  <button
+                    onClick={() => setResult(null)}
+                    className="w-full py-3 rounded-lg border border-purple-500/30 text-purple-300/70 hover:text-purple-300 hover:border-purple-500/50 transition-all cursor-pointer text-sm"
+                  >
+                    {lang === 'mr' ? '← नवीन प्रश्न विचारा' : '← Ask New Question'}
+                  </button>
 
-              {/* Calculation Breakdown */}
-              <CalculationBreakdown
-                calculation={result.calculation}
-                rulingPlanets={result.rulingPlanets}
-              />
+                  <div className="text-center text-white/10 text-xs pb-4">
+                    {lang === 'mr'
+                      ? 'केपी होरारी ज्योतिष पद्धती (KP Reader VI)'
+                      : 'KP Horary Astrology Method (KP Reader VI)'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Lagna Info (degree, sign, time until change) */}
+                  <LagnaInfo
+                    lagnaInfo={result.lagnaInfo}
+                    timestamp={result.timestamp}
+                  />
 
-              {/* Ruling Planets Table */}
-              <RulingPlanetsTable rulingPlanets={result.rulingPlanets} />
+                  {/* Answer (first, most important) */}
+                  <AnswerDisplay
+                    calculation={result.calculation}
+                    options={result.options}
+                    question={result.question}
+                  />
 
-              {/* Verification: Our values vs ProKerala */}
-              <VerificationPanel
-                chartData={result.chart}
-                timestamp={result.timestamp}
-                location={location}
-              />
+                  {/* Calculation Breakdown */}
+                  <CalculationBreakdown
+                    calculation={result.calculation}
+                    rulingPlanets={result.rulingPlanets}
+                  />
 
-              {/* New Calculation button */}
-              <button
-                onClick={() => setResult(null)}
-                className="w-full py-3 rounded-lg border border-gold/30 text-gold/70 hover:text-gold hover:border-gold/50 transition-all cursor-pointer text-sm"
-              >
-                {lang === 'mr' ? '← नवीन प्रश्न विचारा' : '← Ask New Question'}
-              </button>
+                  {/* Ruling Planets Table */}
+                  <RulingPlanetsTable rulingPlanets={result.rulingPlanets} />
 
-              {/* Footer */}
-              <div className="text-center text-white/10 text-xs pb-4">
-                {lang === 'mr'
-                  ? 'केपी रुलिंग प्लॅनेट्स + अंक शास्त्र पद्धती'
-                  : 'KP Ruling Planets + Ank Shastra Method'}
-              </div>
+                  {/* Verification: Our values vs ProKerala */}
+                  <VerificationPanel
+                    chartData={result.chart}
+                    timestamp={result.timestamp}
+                    location={location}
+                  />
+
+                  {/* New Calculation button */}
+                  <button
+                    onClick={() => setResult(null)}
+                    className="w-full py-3 rounded-lg border border-gold/30 text-gold/70 hover:text-gold hover:border-gold/50 transition-all cursor-pointer text-sm"
+                  >
+                    {lang === 'mr' ? '← नवीन प्रश्न विचारा' : '← Ask New Question'}
+                  </button>
+
+                  {/* Footer */}
+                  <div className="text-center text-white/10 text-xs pb-4">
+                    {lang === 'mr'
+                      ? 'केपी रुलिंग प्लॅनेट्स + अंक शास्त्र पद्धती'
+                      : 'KP Ruling Planets + Ank Shastra Method'}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
