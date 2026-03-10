@@ -374,7 +374,7 @@ function Scene({ chartData, rulingPlanetKeys, lang }) {
 export default function KundaliChart3D({ chartData }) {
   const { lang } = useI18n();
   const rulingPlanetKeys = useMemo(() => {
-    if (!chartData?.rulingPlanets) return [];
+    if (!chartData?.rulingPlanets || !Array.isArray(chartData.rulingPlanets)) return [];
     return chartData.rulingPlanets.filter((rp) => !rp.skipped).map((rp) => rp.planetKey);
   }, [chartData]);
 
