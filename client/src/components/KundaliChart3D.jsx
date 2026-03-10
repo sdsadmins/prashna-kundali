@@ -5,73 +5,94 @@ import * as THREE from 'three';
 import { useI18n } from '../i18n/useI18n';
 
 /*
-  North Indian Square Kundali Layout:
+  Kalapurusha Kundali — North Indian Diamond Layout
 
-  Outer square with inner diamond (rotated square) creating 12 triangular houses.
+  Structure: Outer square + inner diamond + two X diagonals = 12 cells.
 
-     ┌──────────┬──────────┐
-     │╲   12   ╱│╲    2   ╱│
-     │  ╲    ╱  │  ╲    ╱  │
-     │ 11 ╲╱   1   ╲╱  3  │
-     │    ╱╲        ╱╲     │
-     │  ╱    ╲    ╱    ╲   │
-     │╱   10  ╲╱╱   4    ╲│
-     │╲       ╱╲╲        ╱│
-     │  ╲   ╱    ╲╲    ╱  │
-     │ 9  ╲╱   7   ╲╱  5  │
-     │    ╱╲        ╱╲     │
-     │  ╱    ╲    ╱    ╲   │
-     │╱   8   ╲│╱    6   ╲│
-     └──────────┴──────────┘
+  Lines:
+  1. Outer square: TL-TR-BR-BL
+  2. Diamond connecting midpoints: T-R-B-L-T
+  3. Diagonal: TL → BR (passes through center)
+  4. Diagonal: TR → BL (passes through center)
 
-  House 1 = Ascendant (top center)
+  These create 12 cells:
+  - 4 corner areas, each bisected into 2 triangles by a diagonal = 8 triangles
+  - Center diamond divided into 4 quadrilaterals by the two diagonals = 4 quads
+
+  Sign positions (counter-clockwise from Aries at right-upper):
+
+  Sign   Cell                    Center (x, y)
+  ──────────────────────────────────────────────
+  0 Ari  TR lower triangle       ( 2.5,  1.5)
+  1 Tau  TR upper triangle       ( 1.5,  2.5)
+  2 Gem  Center top quad         ( 0,    1.5)
+  3 Can  TL upper triangle       (-1.5,  2.5)
+  4 Leo  TL lower triangle       (-2.5,  1.5)
+  5 Vir  Center left quad        (-1.5,  0)
+  6 Lib  BL upper triangle       (-2.5, -1.5)
+  7 Sco  BL lower triangle       (-1.5, -2.5)
+  8 Sag  Center bottom quad      ( 0,   -1.5)
+  9 Cap  BR lower triangle       ( 1.5, -2.5)
+  10 Aqu BR upper triangle       ( 2.5, -1.5)
+  11 Pis Center right quad       ( 1.5,  0)
 */
 
-// House center positions for planet placement (normalized -3 to 3)
-const HOUSE_CENTERS = [
-  { x: 0, y: 1.5 },      // House 1 - top center (ascendant)
-  { x: 1.5, y: 2.2 },    // House 2 - top right triangle
-  { x: 2.2, y: 0.8 },    // House 3 - right upper
-  { x: 1.5, y: -0.2 },   // House 4 - right center
-  { x: 2.2, y: -1.3 },   // House 5 - right lower
-  { x: 1.5, y: -2.2 },   // House 6 - bottom right
-  { x: 0, y: -1.5 },     // House 7 - bottom center
-  { x: -1.5, y: -2.2 },  // House 8 - bottom left
-  { x: -2.2, y: -1.3 },  // House 9 - left lower
-  { x: -1.5, y: -0.2 },  // House 10 - left center
-  { x: -2.2, y: 0.8 },   // House 11 - left upper
-  { x: -1.5, y: 2.2 },   // House 12 - top left triangle
+const S = 3; // half-size of the square
+
+// 12 sign positions — index = sign index (0=Aries ... 11=Pisces)
+const SIGN_CENTERS = [
+  { x: 2.5, y: 1.5 },    // 0 Aries - TR lower triangle
+  { x: 1.5, y: 2.5 },    // 1 Taurus - TR upper triangle
+  { x: 0, y: 1.5 },      // 2 Gemini - center top
+  { x: -1.5, y: 2.5 },   // 3 Cancer - TL upper triangle
+  { x: -2.5, y: 1.5 },   // 4 Leo - TL lower triangle
+  { x: -1.5, y: 0 },     // 5 Virgo - center left
+  { x: -2.5, y: -1.5 },  // 6 Libra - BL upper triangle
+  { x: -1.5, y: -2.5 },  // 7 Scorpio - BL lower triangle
+  { x: 0, y: -1.5 },     // 8 Sagittarius - center bottom
+  { x: 1.5, y: -2.5 },   // 9 Capricorn - BR lower triangle
+  { x: 2.5, y: -1.5 },   // 10 Aquarius - BR upper triangle
+  { x: 1.5, y: 0 },      // 11 Pisces - center right
 ];
 
-// House number label positions (slightly different from planet centers for clarity)
-const HOUSE_NUM_POSITIONS = [
-  { x: 0, y: 2.1 },      // 1
-  { x: 1.9, y: 2.6 },    // 2
-  { x: 2.6, y: 0.5 },    // 3
-  { x: 1.9, y: -0.5 },   // 4
-  { x: 2.6, y: -1.8 },   // 5
-  { x: 1.9, y: -2.6 },   // 6
-  { x: 0, y: -2.1 },     // 7
-  { x: -1.9, y: -2.6 },  // 8
-  { x: -2.6, y: -1.8 },  // 9
-  { x: -1.9, y: -0.5 },  // 10
-  { x: -2.6, y: 0.5 },   // 11
-  { x: -1.9, y: 2.6 },   // 12
+// House number label positions (near cell edges/corners for each sign slot)
+const HOUSE_LABEL_POS = [
+  { x: 2.6, y: 0.6 },    // 0 Aries
+  { x: 1.8, y: 2.7 },    // 1 Taurus
+  { x: 0.3, y: 1.0 },    // 2 Gemini
+  { x: -1.8, y: 2.7 },   // 3 Cancer
+  { x: -2.6, y: 0.6 },   // 4 Leo
+  { x: -0.3, y: -0.4 },  // 5 Virgo
+  { x: -2.6, y: -0.6 },  // 6 Libra
+  { x: -1.8, y: -2.7 },  // 7 Scorpio
+  { x: -0.3, y: -1.0 },  // 8 Sagittarius
+  { x: 1.8, y: -2.7 },   // 9 Capricorn
+  { x: 2.6, y: -0.6 },   // 10 Aquarius
+  { x: 0.3, y: 0.4 },    // 11 Pisces
+];
+
+// Sign name label positions (small, unobtrusive)
+const SIGN_NAME_POS = [
+  { x: 2.5, y: 0.9 },    // 0 Aries
+  { x: 1.0, y: 2.7 },    // 1 Taurus
+  { x: -0.5, y: 1.9 },   // 2 Gemini
+  { x: -1.0, y: 2.7 },   // 3 Cancer
+  { x: -2.5, y: 0.9 },   // 4 Leo
+  { x: -1.9, y: 0.5 },   // 5 Virgo
+  { x: -2.5, y: -0.9 },  // 6 Libra
+  { x: -1.0, y: -2.7 },  // 7 Scorpio
+  { x: 0.5, y: -1.9 },   // 8 Sagittarius
+  { x: 1.0, y: -2.7 },   // 9 Capricorn
+  { x: 2.5, y: -0.9 },   // 10 Aquarius
+  { x: 1.9, y: -0.5 },   // 11 Pisces
 ];
 
 const SIGN_NAMES_EN = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
 const SIGN_NAMES_MR = ['मेष', 'वृष', 'मिथ', 'कर्क', 'सिंह', 'कन्या', 'तूळ', 'वृश्चि', 'धनु', 'मकर', 'कुंभ', 'मीन'];
 
 const PLANET_COLORS = {
-  sun: '#FFD700',
-  moon: '#C0C0C0',
-  mars: '#FF4444',
-  mercury: '#44FF44',
-  jupiter: '#FFB347',
-  venus: '#FF69B4',
-  saturn: '#8888FF',
-  rahu: '#888888',
-  ketu: '#AA6633',
+  sun: '#FFD700', moon: '#C0C0C0', mars: '#FF4444', mercury: '#44FF44',
+  jupiter: '#FFB347', venus: '#FF69B4', saturn: '#8888FF', rahu: '#888888', ketu: '#AA6633',
 };
 
 const PLANET_SYMBOLS = {
@@ -84,59 +105,76 @@ const PLANET_SYMBOLS_MR = {
   jupiter: 'गु', venus: 'शु', saturn: 'श', rahu: 'रा', ketu: 'के',
 };
 
-// North Indian Square Chart with visible house divisions
-function SquareChart({ ascSignIndex, lang }) {
-  const S = 3; // half-size of the square
+// Grid layout for multiple planets in one cell
+function getPlanetPositions(count) {
+  if (count === 1) return [{ dx: 0, dy: 0 }];
+  if (count === 2) return [{ dx: -0.28, dy: 0 }, { dx: 0.28, dy: 0 }];
+  if (count === 3) return [{ dx: -0.28, dy: 0.18 }, { dx: 0.28, dy: 0.18 }, { dx: 0, dy: -0.22 }];
+  if (count === 4) return [
+    { dx: -0.22, dy: 0.18 }, { dx: 0.22, dy: 0.18 },
+    { dx: -0.22, dy: -0.22 }, { dx: 0.22, dy: -0.22 },
+  ];
+  const positions = [];
+  const topCount = Math.ceil(count / 2);
+  const botCount = count - topCount;
+  for (let i = 0; i < topCount; i++) {
+    positions.push({ dx: (i - (topCount - 1) / 2) * 0.3, dy: 0.18 });
+  }
+  for (let i = 0; i < botCount; i++) {
+    positions.push({ dx: (i - (botCount - 1) / 2) * 0.3, dy: -0.22 });
+  }
+  return positions;
+}
+
+// Creates a thick line using a mesh (tube-like) since WebGL linewidth is limited to 1px
+function ThickLine({ points, width = 0.03, color = '#d4a017', opacity = 1 }) {
+  const shape = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(0, -width / 2);
+    s.lineTo(0, width / 2);
+    return s;
+  }, [width]);
+
+  const path = useMemo(() => {
+    const curve = new THREE.LineCurve3(points[0], points[1]);
+    return new THREE.ExtrudeGeometry(shape, {
+      steps: 1, bevelEnabled: false, extrudePath: curve,
+    });
+  }, [points, shape]);
+
+  return (
+    <mesh geometry={path}>
+      <meshBasicMaterial color={color} opacity={opacity} transparent={opacity < 1} />
+    </mesh>
+  );
+}
+
+// Chart grid lines
+function ChartGrid({ ascSignIndex, lang }) {
   const signNames = lang === 'mr' ? SIGN_NAMES_MR : SIGN_NAMES_EN;
 
-  // Outer square
-  const outerSquare = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(-S, S, 0),
-      new THREE.Vector3(S, S, 0),
-      new THREE.Vector3(S, -S, 0),
-      new THREE.Vector3(-S, -S, 0),
-      new THREE.Vector3(-S, S, 0),
-    ];
-    return new THREE.BufferGeometry().setFromPoints(pts);
-  }, []);
+  // Define all line segments as point pairs
+  const outerSquareSegments = useMemo(() => [
+    [new THREE.Vector3(-S, S, 0), new THREE.Vector3(S, S, 0)],
+    [new THREE.Vector3(S, S, 0), new THREE.Vector3(S, -S, 0)],
+    [new THREE.Vector3(S, -S, 0), new THREE.Vector3(-S, -S, 0)],
+    [new THREE.Vector3(-S, -S, 0), new THREE.Vector3(-S, S, 0)],
+  ], []);
 
-  // Inner diamond (rotated square touching midpoints)
-  const innerDiamond = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(0, S, 0),    // top mid
-      new THREE.Vector3(S, 0, 0),    // right mid
-      new THREE.Vector3(0, -S, 0),   // bottom mid
-      new THREE.Vector3(-S, 0, 0),   // left mid
-      new THREE.Vector3(0, S, 0),    // close
-    ];
-    return new THREE.BufferGeometry().setFromPoints(pts);
-  }, []);
+  const diamondSegments = useMemo(() => [
+    [new THREE.Vector3(0, S, 0), new THREE.Vector3(S, 0, 0)],
+    [new THREE.Vector3(S, 0, 0), new THREE.Vector3(0, -S, 0)],
+    [new THREE.Vector3(0, -S, 0), new THREE.Vector3(-S, 0, 0)],
+    [new THREE.Vector3(-S, 0, 0), new THREE.Vector3(0, S, 0)],
+  ], []);
 
-  // Cross lines inside the diamond (vertical and horizontal through center)
-  const crossLines = useMemo(() => {
-    return [
-      // Vertical line through center
-      [new THREE.Vector3(0, S, 0), new THREE.Vector3(0, -S, 0)],
-      // Horizontal line through center
-      [new THREE.Vector3(-S, 0, 0), new THREE.Vector3(S, 0, 0)],
-    ].map(([a, b]) => new THREE.BufferGeometry().setFromPoints([a, b]));
-  }, []);
+  const diag1Points = useMemo(() => [
+    new THREE.Vector3(-S, S, 0), new THREE.Vector3(S, -S, 0),
+  ], []);
 
-  // Corner-to-midpoint diagonals (connecting each corner to adjacent midpoints)
-  // These create the triangular house divisions in the corners
-  const cornerLines = useMemo(() => {
-    return [
-      // Top-left corner to top-mid and left-mid (already covered by diamond edges)
-      // We need the lines from each corner to the OPPOSITE midpoints to create inner divisions
-      // Actually, the North Indian chart is: outer square + inner diamond + vertical/horizontal center lines
-      // That creates 12 sections:
-      // Top: 2 triangles (12, 2) + rectangle (1)
-      // Right: 2 triangles (3, 5) + rectangle (4)
-      // Bottom: 2 triangles (6, 8) + rectangle (7)
-      // Left: 2 triangles (9, 11) + rectangle (10)
-    ];
-  }, []);
+  const diag2Points = useMemo(() => [
+    new THREE.Vector3(S, S, 0), new THREE.Vector3(-S, -S, 0),
+  ], []);
 
   return (
     <group>
@@ -146,50 +184,51 @@ function SquareChart({ ascSignIndex, lang }) {
         <meshBasicMaterial color="#060e1a" opacity={0.95} transparent />
       </mesh>
 
-      {/* Outer square - bright golden */}
-      <line geometry={outerSquare}>
-        <lineBasicMaterial color="#d4a017" linewidth={2} />
-      </line>
-
-      {/* Inner diamond - visible golden */}
-      <line geometry={innerDiamond}>
-        <lineBasicMaterial color="#d4a017" opacity={0.7} transparent />
-      </line>
-
-      {/* Center cross lines */}
-      {crossLines.map((geo, i) => (
-        <line key={`cross-${i}`} geometry={geo}>
-          <lineBasicMaterial color="#d4a017" opacity={0.4} transparent />
-        </line>
+      {/* Outer square — thickest */}
+      {outerSquareSegments.map((pts, i) => (
+        <ThickLine key={`sq-${i}`} points={pts} width={0.06} color="#d4a017" />
       ))}
 
-      {/* House numbers */}
-      {HOUSE_NUM_POSITIONS.map((pos, i) => (
+      {/* Inner diamond */}
+      {diamondSegments.map((pts, i) => (
+        <ThickLine key={`dm-${i}`} points={pts} width={0.04} color="#d4a017" opacity={0.85} />
+      ))}
+
+      {/* Diagonal 1: TL → BR */}
+      <ThickLine points={diag1Points} width={0.04} color="#d4a017" opacity={0.85} />
+
+      {/* Diagonal 2: TR → BL */}
+      <ThickLine points={diag2Points} width={0.04} color="#d4a017" opacity={0.85} />
+
+      {/* Sign name labels (fixed — sign i always at position i) */}
+      {SIGN_NAME_POS.map((pos, signIdx) => (
         <Text
-          key={`hnum-${i}`}
+          key={`sign-${signIdx}`}
           position={[pos.x, pos.y, 0.05]}
-          fontSize={0.22}
-          color="rgba(212, 160, 23, 0.25)"
+          fontSize={0.17}
+          color="rgba(212, 160, 23, 0.22)"
           anchorX="center"
           anchorY="middle"
         >
-          {i + 1}
+          {signNames[signIdx]}
         </Text>
       ))}
 
-      {/* Sign names in each house */}
-      {HOUSE_CENTERS.map((pos, i) => {
-        const signIdx = (ascSignIndex + i) % 12;
+      {/* House number labels (rotate based on ascendant) */}
+      {HOUSE_LABEL_POS.map((pos, signIdx) => {
+        const houseNum = ((signIdx - ascSignIndex + 12) % 12) + 1;
+        const isAsc = houseNum === 1;
         return (
           <Text
-            key={`sign-${i}`}
-            position={[pos.x, pos.y + 0.5, 0.05]}
-            fontSize={0.2}
-            color="rgba(212, 160, 23, 0.2)"
+            key={`hnum-${signIdx}`}
+            position={[pos.x, pos.y, 0.05]}
+            fontSize={isAsc ? 0.25 : 0.2}
+            color={isAsc ? 'rgba(212, 160, 23, 0.6)' : 'rgba(212, 160, 23, 0.25)'}
             anchorX="center"
             anchorY="middle"
+            fontWeight={isAsc ? 'bold' : 'normal'}
           >
-            {signNames[signIdx]}
+            {houseNum}
           </Text>
         );
       })}
@@ -203,40 +242,36 @@ function SquareChart({ ascSignIndex, lang }) {
   );
 }
 
-// Planet glyph placed in a house
-function PlanetGlyph({ planetKey, position, isRulingPlanet, lang }) {
+// Planet glyph
+function PlanetGlyph({ planetKey, position, isRulingPlanet, lang, scale = 1 }) {
   const [hovered, setHovered] = useState(false);
   const glowRef = useRef();
   const color = PLANET_COLORS[planetKey] || '#ffffff';
   const symbol = lang === 'mr' ? PLANET_SYMBOLS_MR[planetKey] : PLANET_SYMBOLS[planetKey];
+  const circleSize = (isRulingPlanet ? 0.15 : 0.11) * scale;
+  const fontSize = 0.2 * scale;
+  const ringInner = 0.18 * scale;
+  const ringOuter = 0.23 * scale;
 
   useFrame((_, delta) => {
-    if (glowRef.current && isRulingPlanet) {
-      glowRef.current.rotation.z += delta * 0.8;
-    }
+    if (glowRef.current && isRulingPlanet) glowRef.current.rotation.z += delta * 0.8;
   });
 
   return (
     <group position={[position.x, position.y, 0.1]}>
-      {/* Outer glow ring for ruling planets */}
       {isRulingPlanet && (
         <mesh ref={glowRef}>
-          <ringGeometry args={[0.25, 0.34, 6]} />
-          <meshBasicMaterial color={color} opacity={0.4} transparent />
+          <ringGeometry args={[ringInner, ringOuter, 6]} />
+          <meshBasicMaterial color={color} opacity={0.35} transparent />
         </mesh>
       )}
-      {/* Planet circle */}
-      <mesh
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <circleGeometry args={[isRulingPlanet ? 0.22 : 0.16, 32]} />
+      <mesh onPointerOver={() => setHovered(true)} onPointerOut={() => setHovered(false)}>
+        <circleGeometry args={[circleSize, 32]} />
         <meshBasicMaterial color={hovered ? '#ffffff' : color} />
       </mesh>
-      {/* Planet symbol - bigger font */}
       <Text
-        position={[0, -0.42, 0]}
-        fontSize={0.28}
+        position={[0, -(circleSize + 0.06), 0]}
+        fontSize={fontSize}
         color={color}
         anchorX="center"
         anchorY="top"
@@ -244,12 +279,11 @@ function PlanetGlyph({ planetKey, position, isRulingPlanet, lang }) {
       >
         {symbol}
       </Text>
-      {/* Hover tooltip */}
       {hovered && (
-        <Html position={[0, 0.6, 0]} center>
+        <Html position={[0, 0.5, 0]} center>
           <div className="bg-black/90 text-white text-xs px-2 py-1 rounded whitespace-nowrap border border-gold/30">
             {lang === 'mr' ? PLANET_SYMBOLS_MR[planetKey] : planetKey.charAt(0).toUpperCase() + planetKey.slice(1)}
-            {isRulingPlanet && <span className="text-gold ml-1">★ Ruling</span>}
+            {isRulingPlanet && <span className="text-gold ml-1">&#9733;</span>}
           </div>
         </Html>
       )}
@@ -257,57 +291,45 @@ function PlanetGlyph({ planetKey, position, isRulingPlanet, lang }) {
   );
 }
 
-// Slow rotating star field
+// Star field
 function StarField() {
   const ref = useRef();
   const particles = useMemo(() => {
-    const positions = new Float32Array(400 * 3);
+    const p = new Float32Array(400 * 3);
     for (let i = 0; i < 400; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 25;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 25;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 5 - 3;
+      p[i * 3] = (Math.random() - 0.5) * 25;
+      p[i * 3 + 1] = (Math.random() - 0.5) * 25;
+      p[i * 3 + 2] = (Math.random() - 0.5) * 5 - 3;
     }
-    return positions;
+    return p;
   }, []);
-
-  useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.z += delta * 0.015;
-  });
-
+  useFrame((_, delta) => { if (ref.current) ref.current.rotation.z += delta * 0.015; });
   return (
     <points ref={ref}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={particles}
-          count={400}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" array={particles} count={400} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial size={0.03} color="#d4a017" transparent opacity={0.3} />
     </points>
   );
 }
 
-// Main 3D scene
+// Main scene
 function Scene({ chartData, rulingPlanetKeys, lang }) {
   const groupRef = useRef();
-
   useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.rotation.z = Math.sin(Date.now() * 0.0002) * 0.01;
-    }
+    if (groupRef.current) groupRef.current.rotation.z = Math.sin(Date.now() * 0.0002) * 0.01;
   });
 
   const ascSignIndex = chartData?.chart?.ascendantSignIndex || 0;
   const planetPositions = chartData?.chart?.planetPositions || {};
 
-  // Group planets by house
-  const planetsInHouses = {};
+  // Group planets by sign index (Kalapurusha — signs at fixed positions)
+  const planetsInSigns = {};
   Object.entries(planetPositions).forEach(([key, info]) => {
-    const house = info.house;
-    if (!planetsInHouses[house]) planetsInHouses[house] = [];
-    planetsInHouses[house].push(key);
+    const si = info.signIndex;
+    if (!planetsInSigns[si]) planetsInSigns[si] = [];
+    planetsInSigns[si].push(key);
   });
 
   return (
@@ -315,79 +337,53 @@ function Scene({ chartData, rulingPlanetKeys, lang }) {
       <StarField />
       <ambientLight intensity={0.4} />
       <pointLight position={[0, 0, 5]} intensity={0.8} color="#d4a017" />
-
       <group ref={groupRef}>
-        <SquareChart ascSignIndex={ascSignIndex} lang={lang} />
+        <ChartGrid ascSignIndex={ascSignIndex} lang={lang} />
 
-        {/* Planets in their houses */}
-        {Object.entries(planetsInHouses).map(([house, planets]) => {
-          const houseIdx = parseInt(house) - 1;
-          const basePos = HOUSE_CENTERS[houseIdx] || { x: 0, y: 0 };
-
-          return planets.map((planetKey, pIdx) => {
-            const offset = (pIdx - (planets.length - 1) / 2) * 0.4;
-            const pos = {
-              x: basePos.x + offset * 0.6,
-              y: basePos.y - 0.2,
-            };
+        {/* Planets at their sign's fixed position */}
+        {Object.entries(planetsInSigns).map(([signIdx, planets]) => {
+          const idx = parseInt(signIdx);
+          const base = SIGN_CENTERS[idx] || { x: 0, y: 0 };
+          const grid = getPlanetPositions(planets.length);
+          const scale = planets.length >= 5 ? 0.65 : planets.length >= 3 ? 0.8 : 1;
+          return planets.map((pKey, pIdx) => {
+            const g = grid[pIdx];
             return (
               <PlanetGlyph
-                key={planetKey}
-                planetKey={planetKey}
-                position={pos}
-                isRulingPlanet={rulingPlanetKeys.includes(planetKey)}
+                key={pKey}
+                planetKey={pKey}
+                position={{ x: base.x + g.dx, y: base.y + g.dy }}
+                isRulingPlanet={rulingPlanetKeys.includes(pKey)}
                 lang={lang}
+                scale={scale}
               />
             );
           });
         })}
 
         {/* Lagna marker */}
-        <Text
-          position={[0, 3.4, 0.1]}
-          fontSize={0.3}
-          color="#d4a017"
-          anchorX="center"
-          fontWeight="bold"
-        >
+        <Text position={[0, 3.4, 0.1]} fontSize={0.3} color="#d4a017" anchorX="center" fontWeight="bold">
           {lang === 'mr' ? '॥ लग्न ॥' : '॥ ASC ॥'}
         </Text>
       </group>
-
-      <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        minDistance={5}
-        maxDistance={16}
-        autoRotate={false}
-      />
+      <OrbitControls enablePan enableZoom enableRotate minDistance={5} maxDistance={16} autoRotate={false} />
     </>
   );
 }
 
-// Exported component — fills available height
 export default function KundaliChart3D({ chartData }) {
   const { lang } = useI18n();
-
   const rulingPlanetKeys = useMemo(() => {
     if (!chartData?.rulingPlanets) return [];
-    return chartData.rulingPlanets
-      .filter((rp) => !rp.skipped)
-      .map((rp) => rp.planetKey);
+    return chartData.rulingPlanets.filter((rp) => !rp.skipped).map((rp) => rp.planetKey);
   }, [chartData]);
 
   if (!chartData) return null;
-
   return (
     <div className="card-glass overflow-hidden w-full h-full relative" style={{ minHeight: '400px' }}>
-      <Canvas
-        camera={{ position: [0, 0, 9], fov: 50 }}
-        style={{ background: 'transparent' }}
-      >
+      <Canvas camera={{ position: [0, 0, 9], fov: 50 }} style={{ background: 'transparent' }}>
         <Scene chartData={chartData} rulingPlanetKeys={rulingPlanetKeys} lang={lang} />
       </Canvas>
-      {/* Zoom hint */}
       <div className="absolute bottom-2 left-0 right-0 text-center text-white/15 text-xs pointer-events-none">
         {lang === 'mr' ? 'स्क्रोल करा = झूम | ड्रॅग = फिरवा' : 'Scroll = Zoom | Drag = Rotate'}
       </div>

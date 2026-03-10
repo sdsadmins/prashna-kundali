@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { I18nProvider, useI18n } from './i18n/useI18n';
 import SplashScreen from './components/SplashScreen';
 import LanguageToggle from './components/LanguageToggle';
@@ -12,12 +12,13 @@ import LagnaInfo from './components/LagnaInfo';
 import LiveLagnaBar from './components/LiveLagnaBar';
 import VerificationPanel from './components/VerificationPanel';
 import AdminPage from './pages/AdminPage';
-import { getCurrentPosition } from './utils/geolocation';
+import { getCurrentPosition, getLocationName } from './utils/geolocation';
 import './index.css';
 
 function AppContent() {
   const { t, lang } = useI18n();
   const [location, setLocation] = useState(null);
+  const [locationName, setLocationName] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -25,11 +26,14 @@ function AppContent() {
   // Get geolocation on mount
   useEffect(() => {
     getCurrentPosition()
-      .then(setLocation)
+      .then((loc) => {
+        setLocation(loc);
+        getLocationName(loc.latitude, loc.longitude).then(setLocationName);
+      })
       .catch(() => {
         setLocationError(true);
-        // Fallback to Pune
         setLocation({ latitude: 18.5204, longitude: 73.8567 });
+        setLocationName(lang === 'mr' ? 'पुणे' : 'Pune');
       });
   }, []);
 
@@ -92,10 +96,18 @@ function AppContent() {
                 <span>&#9679;</span>
                 {locationError
                   ? lang === 'mr' ? 'पुणे (डीफॉल्ट)' : 'Pune (default)'
-                  : t('locationDetected')}
+                  : locationName
+                    ? locationName
+                    : t('locationDetected')}
               </span>
             )}
             <LanguageToggle />
+            <Link
+              to="/admin"
+              className="text-white/30 hover:text-gold/70 text-xs transition-colors"
+            >
+              {lang === 'mr' ? 'लॉगिन' : 'Login'}
+            </Link>
           </div>
         </header>
 

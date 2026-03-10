@@ -60,7 +60,9 @@ export default function RulingPlanetsTable({ rulingPlanets }) {
                 </td>
                 <td className="py-3 px-3 text-white/50 text-xs">
                   {rp.sign && (lang === 'mr' ? rp.sign.mr : rp.sign.en)}
-                  {rp.nakshatra && (lang === 'mr' ? rp.nakshatra.mr : rp.nakshatra.en)}
+                  {rp.nakshatra && (
+                    <>{rp.sign ? ' | ' : ''}{lang === 'mr' ? rp.nakshatra.mr : rp.nakshatra.en}</>
+                  )}
                   {rp.day && (lang === 'mr' ? rp.day.mr : rp.day.en)}
                 </td>
                 <td className="py-3 px-3 text-right">

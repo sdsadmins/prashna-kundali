@@ -118,14 +118,16 @@ module.exports = async (req, res) => {
       },
     };
 
-    // Send response immediately
-    res.status(200).json(responseData);
+    // Save to database (initDb is cached after first call, so fast on warm starts)
+    try {
+      await initDb();
+      const { success, ...dataToStore } = responseData;
+      await saveCalculation(dataToStore);
+    } catch (dbError) {
+      console.error('DB save error (non-fatal):', dbError.message);
+    }
 
-    // Save to database in background (don't block the response)
-    const { success, ...dataToStore } = responseData;
-    initDb()
-      .then(() => saveCalculation(dataToStore))
-      .catch((dbError) => console.error('DB save error (non-fatal):', dbError.message));
+    res.status(200).json(responseData);
   } catch (error) {
     console.error('Calculation error:', error);
     res.status(500).json({ error: error.message });

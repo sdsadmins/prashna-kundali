@@ -7,6 +7,26 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #4640 | 2:23 PM | 🔴 | Fixed Variable Scoping Error in Planet Position Calculation | ~462 |
+| #4632 | 2:15 PM | 🔵 | Ruling Planets Calculation Logic Implementation | ~563 |
+| #4616 | 2:01 PM | 🔴 | Fixed Tropical-to-Sidereal Conversion for House Calculations | ~431 |
+| #4608 | 1:40 PM | 🟣 | Bilingual Ordinal Number Formatting Functions Added | ~409 |
+| #4599 | 1:37 PM | 🔵 | Ruling Planets Calculation Engine with Retrograde and Combustion Logic | ~701 |
+| #4598 | " | 🔵 | Nakshatra and Sign Calculation Service Implementation | ~481 |
 | #4568 | 1:03 PM | 🟣 | Ruling Planets Calculation Service Implemented | ~611 |
 | #4567 | 1:02 PM | 🟣 | Swiss Ephemeris Calculation Engine Implemented | ~573 |
+
+### Feb 22, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #4898 | 11:44 AM | 🔴 | Special Case Handling for Yes/No Questions in Digit Reduction | ~437 |
+
+### Feb 23, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5014 | 12:32 PM | 🔴 | LSRD Star Lord Corrected to Moon Nakshatra Lord (Not Lagna Nakshatra) | ~641 |
+| #5008 | 12:00 PM | ✅ | Response Performance Optimized with Non-Blocking Database Save | ~610 |
+| #5007 | " | 🔴 | Database Initialization Guard Added for Serverless Environments | ~506 |
 </claude-mem-context>

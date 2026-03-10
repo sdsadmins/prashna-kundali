@@ -168,6 +168,24 @@ function Dashboard({ token, onLogout }) {
 
   useEffect(() => { fetchList(); }, []);
 
+  const handleDelete = async (id) => {
+    const msg = lang === 'mr' ? 'ही गणना हटवायची?' : 'Delete this calculation?';
+    if (!window.confirm(msg)) return;
+    try {
+      const res = await fetch(`/api/admin/calculations?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCalculations((prev) => prev.filter((c) => c.id !== id));
+        setTotal((prev) => prev - 1);
+      }
+    } catch {
+      console.error('Failed to delete calculation');
+    }
+  };
+
   const handleRowClick = async (id) => {
     setDetailLoading(true);
     try {
@@ -240,6 +258,7 @@ function Dashboard({ token, onLogout }) {
                   <th className="text-left py-2 px-3">
                     {lang === 'mr' ? 'लग्न' : 'Lagna'}
                   </th>
+                  <th className="text-center py-2 px-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -273,6 +292,18 @@ function Dashboard({ token, onLogout }) {
                       {lang === 'mr'
                         ? calc.lagna_sign?.mr
                         : calc.lagna_sign?.en}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(calc.id);
+                        }}
+                        className="text-red-400/40 hover:text-red-400 text-xs cursor-pointer transition-colors"
+                        title={lang === 'mr' ? 'हटवा' : 'Delete'}
+                      >
+                        &#10005;
+                      </button>
                     </td>
                   </tr>
                 ))}

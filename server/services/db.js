@@ -72,4 +72,9 @@ async function getCalculationById(id) {
   return rows[0] || null;
 }
 
-module.exports = { initDb, saveCalculation, getCalculations, getCalculationById };
+async function deleteCalculation(id) {
+  const sql = getDb();
+  await sql`DELETE FROM calculations WHERE id = ${id}`;
+}
+
+module.exports = { initDb, saveCalculation, getCalculations, getCalculationById, deleteCalculation };
