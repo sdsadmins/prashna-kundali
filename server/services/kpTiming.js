@@ -15,9 +15,10 @@
  */
 const { calcPlanetPosition, dateToJulianDay, getAyanamsa } = require('./ephemeris');
 const { KP_SUB_TABLE } = require('../data/kpSubTable');
-const { SIGNS, DAY_LORDS } = require('../data/constants');
+const { SIGNS, DAY_LORDS, VIMSHOTTARI_ORDER, VIMSHOTTARI_YEARS } = require('../data/constants');
 const { getQuestionHouses } = require('../data/kpQuestionHouses');
 const { getHousesSignifiedByPlanet } = require('./kpSignificators');
+const { calculateSubPeriods } = require('./kpDasha');
 
 // Map planet name to the day-of-week index (0=Sunday ... 6=Saturday)
 const PLANET_TO_DAY = {};
@@ -353,10 +354,31 @@ function findDashaTiming(dashaBalance, significators, questionCategory, judgment
   const bhuktis = dashaBalance.bhuktis || [];
   // Search current Maha Dasha for favorable Bhukti/Anthra
   // Anthra details are only available for current Bhukti (dashaBalance drills into it)
-  const results = searchBhuktis(bhuktis, mahaDashaLord, mahaIsFavorable, true);
+  let results = searchBhuktis(bhuktis, mahaDashaLord, mahaIsFavorable, true);
 
-  // Sort by score (higher = better), then by date (earlier = better)
-  results.sort((a, b) => b.score - a.score || new Date(a.date) - new Date(b.date));
+  // If current Maha Dasha has < 6 months remaining OR found nothing useful,
+  // also search the NEXT Maha Dasha's Bhuktis for favorable periods.
+  const remainingMonths = dashaBalance.mahaDasha.remainingDays / 30.44;
+  if (remainingMonths < 6 || results.length === 0) {
+    const nextMahaLord = VIMSHOTTARI_ORDER[
+      (VIMSHOTTARI_ORDER.indexOf(mahaDashaLord) + 1) % 9
+    ];
+    const nextMahaYears = VIMSHOTTARI_YEARS[nextMahaLord];
+    const nextMahaStart = new Date(dashaBalance.mahaDasha.endDate);
+    const nextBhuktis = calculateSubPeriods(nextMahaLord, nextMahaStart, nextMahaYears);
+    const nextMahaFavorable = signifiesFavorable(nextMahaLord);
+    const nextResults = searchBhuktis(nextBhuktis, nextMahaLord, nextMahaFavorable, false);
+    results = results.concat(nextResults);
+  }
+
+  // Sort: deprioritize nearly-expired periods (end within 14 days), then by score, then by date
+  const minUsefulEndMs = judgmentDate.getTime() + 14 * 86400000;
+  results.sort((a, b) => {
+    const aExpiring = new Date(a.endDate).getTime() < minUsefulEndMs;
+    const bExpiring = new Date(b.endDate).getTime() < minUsefulEndMs;
+    if (aExpiring !== bExpiring) return aExpiring ? 1 : -1; // push expiring to end
+    return b.score - a.score || new Date(a.date) - new Date(b.date);
+  });
 
   return {
     periods: results.slice(0, 5),
@@ -527,6 +549,24 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       confidence: 'low',
       method: 'jupiter-transit',
       description: 'Jupiter transit (year-level estimate)',
+    };
+  }
+
+  // Fallback: if transit method yielded nothing (0 target positions),
+  // use the best dasha period — preferring periods that haven't nearly expired.
+  // This handles cases where only 1-2 ruling planets leave no triple-match sub-table entries.
+  if (!bestPredictedDate && dashaTiming && dashaTiming.best) {
+    // Pick the dasha period that's either future or has meaningful duration left (> 14 days)
+    const usablePeriods = (dashaTiming.periods || []).filter(p => {
+      const endMs = new Date(p.endDate).getTime();
+      return endMs > judgmentDate.getTime() + 14 * 86400000; // at least 14 days remaining
+    });
+    const best = usablePeriods.length > 0 ? usablePeriods[0] : dashaTiming.best;
+    bestPredictedDate = {
+      date: best.date,
+      confidence: best.confidence === 'high' ? 'medium' : 'low',
+      method: 'dasha-period',
+      description: `${best.description} (Dasha period)`,
     };
   }
 
