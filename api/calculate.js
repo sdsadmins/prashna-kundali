@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { latitude, longitude, optionsCount, question, options, mode, horaryNumber, questionCategory } = req.body;
+    const { latitude, longitude, optionsCount, question, options, mode, horaryNumber, questionCategory, kpQuestionType } = req.body;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
@@ -43,6 +43,7 @@ module.exports = async (req, res) => {
         location: { latitude, longitude },
         question,
         questionCategory: category,
+        kpQuestionType: kpQuestionType || 'yesno',
         ...kpResult,
       };
       res.status(200).json(responseData);

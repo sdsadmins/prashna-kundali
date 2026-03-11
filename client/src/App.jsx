@@ -23,6 +23,7 @@ function AppContent() {
   const [locationError, setLocationError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [formMode, setFormMode] = useState('ank');
 
   // Get geolocation on mount
   useEffect(() => {
@@ -125,7 +126,7 @@ function AppContent() {
               </div>
             )}
 
-            <QuestionForm onCalculate={handleCalculate} isLoading={isLoading} />
+            <QuestionForm onCalculate={handleCalculate} isLoading={isLoading} initialMode={formMode} onModeChange={setFormMode} />
 
             {/* Empty state hint */}
             {!isLoading && (

@@ -20,9 +20,14 @@ const QUESTION_CATEGORIES = [
   { key: 'election', en: 'Election / Competition', mr: 'निवडणूक' },
 ];
 
-export default function QuestionForm({ onCalculate, isLoading }) {
+export default function QuestionForm({ onCalculate, isLoading, initialMode, onModeChange }) {
   const { t, lang } = useI18n();
-  const [mode, setMode] = useState('ank');
+  const [mode, setMode] = useState(initialMode || 'ank');
+
+  const handleModeChange = (m) => {
+    setMode(m);
+    onModeChange?.(m);
+  };
   const [question, setQuestion] = useState('');
   const [questionType, setQuestionType] = useState('yesno');
   const [options, setOptions] = useState([
@@ -31,6 +36,7 @@ export default function QuestionForm({ onCalculate, isLoading }) {
   ]);
   const [horaryNumber, setHoraryNumber] = useState('');
   const [questionCategory, setQuestionCategory] = useState('general');
+  const [kpQuestionType, setKpQuestionType] = useState('yesno');
 
   useEffect(() => {
     if (questionType === 'yesno') {
@@ -68,7 +74,7 @@ export default function QuestionForm({ onCalculate, isLoading }) {
     if (mode === 'kp') {
       const num = parseInt(horaryNumber);
       if (!num || num < 1 || num > 249) return;
-      onCalculate({ question, mode: 'kp', horaryNumber: num, questionCategory });
+      onCalculate({ question, mode: 'kp', horaryNumber: num, questionCategory, kpQuestionType });
     } else {
       if (!allOptionsFilled) return;
       const filledOptions = options.map((o, i) => o.trim() || `${t('optionPlaceholder')} ${i + 1}`);
@@ -85,7 +91,7 @@ export default function QuestionForm({ onCalculate, isLoading }) {
       {/* Mode Toggle */}
       <div className="flex rounded-lg overflow-hidden border border-white/10">
         <button
-          onClick={() => setMode('ank')}
+          onClick={() => handleModeChange('ank')}
           className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer ${
             mode === 'ank'
               ? 'bg-gold/20 text-gold border-r border-gold/30'
@@ -95,7 +101,7 @@ export default function QuestionForm({ onCalculate, isLoading }) {
           {lang === 'mr' ? 'अंक शास्त्र' : 'Ank Shastra'}
         </button>
         <button
-          onClick={() => setMode('kp')}
+          onClick={() => handleModeChange('kp')}
           className={`flex-1 py-2.5 text-sm font-medium transition-all cursor-pointer ${
             mode === 'kp'
               ? 'bg-purple-500/20 text-purple-300 border-l border-purple-500/30'
@@ -163,6 +169,34 @@ export default function QuestionForm({ onCalculate, isLoading }) {
                   ? 'जातकाला 1 ते 249 मधील कोणताही क्रमांक सांगायला सांगा'
                   : 'Ask the querist to think of any number between 1 and 249'}
               </div>
+            </div>
+          </div>
+          {/* Question Type toggle */}
+          <div>
+            <label className="block text-purple-300 text-sm font-medium mb-2">
+              {lang === 'mr' ? 'प्रश्नाचा प्रकार' : 'Question Type'}
+            </label>
+            <div className="flex rounded-lg overflow-hidden border border-purple-500/20">
+              <button
+                onClick={() => setKpQuestionType('yesno')}
+                className={`flex-1 py-2 text-xs font-medium transition-all cursor-pointer ${
+                  kpQuestionType === 'yesno'
+                    ? 'bg-purple-500/20 text-purple-300 border-r border-purple-500/30'
+                    : 'bg-white/5 text-white/40 border-r border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {lang === 'mr' ? 'हे होईल का?' : 'Will it happen?'}
+              </button>
+              <button
+                onClick={() => setKpQuestionType('timing')}
+                className={`flex-1 py-2 text-xs font-medium transition-all cursor-pointer ${
+                  kpQuestionType === 'timing'
+                    ? 'bg-indigo-500/20 text-indigo-300 border-l border-indigo-500/30'
+                    : 'bg-white/5 text-white/40 border-l border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {lang === 'mr' ? 'हे कधी होईल?' : 'When will it happen?'}
+              </button>
             </div>
           </div>
           <div>

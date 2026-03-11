@@ -52,75 +52,141 @@ export default function KPResultPanel({ result }) {
 
   if (!result || result.mode !== 'kp') return null;
 
-  const { yesNo, subEntry, rulingPlanets, dashaBalance, timing, significators, planets, houses, question } = result;
+  const { yesNo, subEntry, rulingPlanets, dashaBalance, timing, significators, planets, houses, question, kpQuestionType } = result;
   const v = VERDICT_STYLES[yesNo.verdict] || VERDICT_STYLES.NO;
   const isYes = yesNo.verdict === 'YES' || yesNo.verdict === 'YES_WITH_DELAY';
   const prediction = isYes ? getPredictedDate(timing) : null;
   const predictedDate = prediction?.date || null;
+  const isTimingMode = kpQuestionType === 'timing';
 
   const toggle = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  // Confidence label helper
+  function confidenceLabel(pred) {
+    if (!pred) return '';
+    if (pred.confidence === 'high') return lang === 'mr' ? 'सूर्य + चंद्र + वारनाथ संरेखन' : 'Sun + Moon + Day Lord alignment';
+    if (pred.confidence === 'medium') return lang === 'mr' ? 'सूर्य + चंद्र गोचर' : 'Sun + Moon transit alignment';
+    if (pred.method === 'sun-transit') return lang === 'mr' ? 'सूर्य गोचर (अंदाजे महिना)' : 'Sun transit (approximate month)';
+    if (pred.method === 'dasha-period') return lang === 'mr' ? 'दशा काळ आधारित' : 'Based on Dasha period';
+    return lang === 'mr' ? 'गुरू गोचर आधारित' : 'Based on Jupiter transit';
+  }
+
   return (
     <div className="space-y-4">
-      {/* Verdict Card — with prominent date */}
-      <div className={`card-glass p-5 bg-gradient-to-br ${v.bg} border ${v.border}`}>
-        {question && (
-          <p className="text-white/60 text-sm mb-3 italic">&quot;{question}&quot;</p>
-        )}
-        <div className="text-center">
-          <div className={`text-4xl font-bold ${v.text} mb-2`}>
-            {v.label[lang] || v.label.en}
+      {/* TIMING MODE: Hero is the predicted date, verdict is a small badge */}
+      {isTimingMode && isYes && (
+        <div className="card-glass p-5 bg-gradient-to-br from-indigo-500/20 to-indigo-900/10 border border-indigo-500/40">
+          {question && (
+            <p className="text-white/60 text-sm mb-3 italic">&quot;{question}&quot;</p>
+          )}
+          {/* Small verdict badge */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${v.border} ${v.text} bg-white/5`}>
+              {v.label[lang] || v.label.en}
+              {yesNo.verdict === 'YES_WITH_DELAY' && <span className="ml-1 opacity-70">{lang === 'mr' ? '(विलंबासह)' : '(with delay)'}</span>}
+            </span>
+            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}</span>
           </div>
-          {yesNo.verdict === 'YES_WITH_DELAY' && (
-            <div className="text-yellow-400/70 text-xs mb-2">
-              {lang === 'mr' ? '(विलंबासह)' : '(with delay)'}
+          {/* Big timing hero */}
+          {predictedDate ? (
+            <div className="text-center">
+              <div className="text-white/50 text-xs mb-1">
+                {lang === 'mr' ? 'अंदाजित तारीख' : 'Predicted Date'}
+              </div>
+              <div className="text-3xl font-bold text-white">
+                {formatDate(predictedDate, lang)}
+                {prediction?.dayName && <span className="text-xl text-white/60 ml-2">({prediction.dayName})</span>}
+              </div>
+              <div className="text-white/40 text-xs mt-2">{confidenceLabel(prediction)}</div>
+              {prediction?.confidence === 'high' && (
+                <div className="mt-2">
+                  <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
+                    {lang === 'mr' ? 'उच्च विश्वास' : 'High confidence'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-white/40 text-sm py-2">
+              {lang === 'mr' ? 'गोचर स्थिती आधारित अचूक तारीख उपलब्ध नाही' : 'Exact transit date not available — see Dasha period below'}
             </div>
           )}
-          <div className="text-white/50 text-sm">
-            {lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}
+        </div>
+      )}
+
+      {/* TIMING MODE + NO verdict: show timing unavailable notice */}
+      {isTimingMode && !isYes && (
+        <div className="card-glass p-5 bg-gradient-to-br from-red-500/10 to-red-900/5 border border-red-500/30">
+          {question && (
+            <p className="text-white/60 text-sm mb-3 italic">&quot;{question}&quot;</p>
+          )}
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${v.border} ${v.text} bg-white/5`}>
+              {v.label[lang] || v.label.en}
+            </span>
+            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}</span>
+          </div>
+          <div className="text-red-400/70 text-sm text-center">
+            {lang === 'mr'
+              ? 'उप-स्वामी विश्लेषणानुसार ही घटना घडणार नाही — काल निर्धारण लागू नाही'
+              : 'Sub-lord analysis indicates this will not materialize — timing not applicable'}
           </div>
         </div>
+      )}
 
-        {/* Predicted Date — prominently shown for YES verdicts */}
-        {isYes && predictedDate && (
-          <div className="mt-4 pt-4 border-t border-white/10 text-center">
-            <div className="text-white/50 text-xs mb-1">
-              {lang === 'mr' ? 'अंदाजित तारीख' : 'Predicted Date'}
+      {/* YES/NO MODE (default): Verdict Card with prominent date */}
+      {!isTimingMode && (
+        <div className={`card-glass p-5 bg-gradient-to-br ${v.bg} border ${v.border}`}>
+          {question && (
+            <p className="text-white/60 text-sm mb-3 italic">&quot;{question}&quot;</p>
+          )}
+          <div className="text-center">
+            <div className={`text-4xl font-bold ${v.text} mb-2`}>
+              {v.label[lang] || v.label.en}
             </div>
-            <div className="text-2xl font-bold text-white">
-              {formatDate(predictedDate, lang)}
-              {prediction?.dayName && <span className="text-lg text-white/60 ml-2">({prediction.dayName})</span>}
-            </div>
-            <div className="text-white/40 text-xs mt-1">
-              {prediction?.confidence === 'high'
-                ? (lang === 'mr' ? 'सूर्य + चंद्र + वारनाथ संरेखन' : 'Sun + Moon + Day Lord alignment')
-                : prediction?.confidence === 'medium'
-                  ? (lang === 'mr' ? 'सूर्य + चंद्र गोचर' : 'Sun + Moon transit alignment')
-                  : prediction?.method === 'sun-transit'
-                    ? (lang === 'mr' ? 'सूर्य गोचर (अंदाजे महिना)' : 'Sun transit (approximate month)')
-                    : (lang === 'mr' ? 'गुरू गोचर आधारित' : 'Based on Jupiter transit')}
-            </div>
-            {prediction?.confidence === 'high' && (
-              <div className="mt-1">
-                <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-                  {lang === 'mr' ? 'उच्च विश्वास' : 'High confidence'}
-                </span>
+            {yesNo.verdict === 'YES_WITH_DELAY' && (
+              <div className="text-yellow-400/70 text-xs mb-2">
+                {lang === 'mr' ? '(विलंबासह)' : '(with delay)'}
               </div>
             )}
-          </div>
-        )}
-
-        {/* For NO verdict — show reason */}
-        {!isYes && (
-          <div className="mt-4 pt-4 border-t border-white/10 text-center">
-            <div className="text-red-400/70 text-xs">
-              {lang === 'mr'
-                ? 'उप-स्वामी विश्लेषणानुसार हे घडणार नाही'
-                : 'Sub-lord analysis indicates this will not materialize'}
+            <div className="text-white/50 text-sm">
+              {lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Predicted Date — prominently shown for YES verdicts */}
+          {isYes && predictedDate && (
+            <div className="mt-4 pt-4 border-t border-white/10 text-center">
+              <div className="text-white/50 text-xs mb-1">
+                {lang === 'mr' ? 'अंदाजित तारीख' : 'Predicted Date'}
+              </div>
+              <div className="text-2xl font-bold text-white">
+                {formatDate(predictedDate, lang)}
+                {prediction?.dayName && <span className="text-lg text-white/60 ml-2">({prediction.dayName})</span>}
+              </div>
+              <div className="text-white/40 text-xs mt-1">{confidenceLabel(prediction)}</div>
+              {prediction?.confidence === 'high' && (
+                <div className="mt-1">
+                  <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
+                    {lang === 'mr' ? 'उच्च विश्वास' : 'High confidence'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* For NO verdict — show reason */}
+          {!isYes && (
+            <div className="mt-4 pt-4 border-t border-white/10 text-center">
+              <div className="text-red-400/70 text-xs">
+                {lang === 'mr'
+                  ? 'उप-स्वामी विश्लेषणानुसार हे घडणार नाही'
+                  : 'Sub-lord analysis indicates this will not materialize'}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Detailed Transit Dates — always visible for YES */}
       {isYes && timing && (
