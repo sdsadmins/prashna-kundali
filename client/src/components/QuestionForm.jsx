@@ -122,8 +122,31 @@ export default function QuestionForm({ onCalculate, isLoading }) {
       {mode === 'kp' && (
         <>
           <div>
-            <label className="block text-purple-300 text-sm font-medium mb-2">
+            <label className="flex items-center gap-2 text-purple-300 text-sm font-medium mb-2">
               {lang === 'mr' ? 'होरारी क्रमांक (1-249)' : 'Horary Number (1-249)'}
+              <span className="relative group cursor-help">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-purple-400/50 text-purple-300 text-[10px] leading-none select-none">?</span>
+                <div className="absolute left-0 top-6 z-50 hidden group-hover:block w-80 bg-[#1a1025] border border-purple-500/30 rounded-xl shadow-2xl p-4 text-xs text-white/80 leading-relaxed">
+                  <div className="text-purple-300 font-semibold mb-2">
+                    {lang === 'mr' ? 'प्रश्न कधी विचारावा?' : 'When to Ask a Question?'}
+                  </div>
+                  <div className="space-y-2">
+                    <p><span className="text-purple-200 font-medium">{lang === 'mr' ? 'KP पद्धती:' : 'KP System:'}</span>{' '}{lang === 'mr' ? 'दिवसाची वेळ, वार किंवा तिथी यांचे कोणतेही बंधन नाही. न्यायाधीशाच्या वेळेत सत्य प्रकट होते.' : 'No restrictions on time of day, day of week, or lunar phase. Truth reveals itself through the Ruling Planets at the moment of judgment.'}</p>
+                    <p><span className="text-purple-200 font-medium">{lang === 'mr' ? 'परंपरागत नियम (ज्योतिष ग्रंथ):' : 'Traditional rules (classic texts):'}</span></p>
+                    <ul className="list-disc pl-3 space-y-1 text-white/60">
+                      <li>{lang === 'mr' ? 'सकाळची वेळ उत्तम; दुपार, संध्याकाळ, रात्र टाळावी' : 'Morning preferred; avoid afternoon, twilight & night'}</li>
+                      <li>{lang === 'mr' ? 'पूर्व किंवा उत्तर दिशेकडे तोंड करून विचारावे' : 'Face east or north when asking'}</li>
+                      <li>{lang === 'mr' ? 'स्मशानभूमी, रुग्णालय, कत्तलखाना यांसारख्या ठिकाणी विचारणे टाळा' : 'Avoid asking in graveyards, hospitals, slaughterhouses'}</li>
+                      <li>{lang === 'mr' ? 'वारावर कोणतेही बंधन नाही; तिथी किंवा चंद्र कलेवर बंधन नाही' : 'No restriction on day of week, tithi, or lunar phase'}</li>
+                    </ul>
+                    <p><span className="text-purple-200 font-medium">{lang === 'mr' ? 'जातकाची प्रामाणिकता:' : 'Querist sincerity:'}</span>{' '}{lang === 'mr' ? 'प्रश्न मनापासून असेल तरच उत्तर खरे निघते. ग्रह स्वतःच खरे-खोटे दाखवतात.' : 'Only a sincere question yields a true answer. The Ruling Planets reveal authenticity automatically.'}</p>
+                    <p><span className="text-purple-200 font-medium">{lang === 'mr' ? 'महत्त्वाचा नियम:' : 'One hard rule:'}</span>{' '}{lang === 'mr' ? '249 पेक्षा जास्त क्रमांक दिल्यास इच्छा पूर्ण होणार नाही असे KP म्हणतात.' : 'KP states: if the querist gives a number above 249, the matter will not materialise.'}</p>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-white/10 text-white/30 text-[10px]">
+                    {lang === 'mr' ? 'स्रोत: KP Reader VI — होरारी ज्योतिष (के.एस. कृष्णमूर्ती)' : 'Source: KP Reader VI — Horary Astrology (K.S. Krishnamurti)'}
+                  </div>
+                </div>
+              </span>
             </label>
             <div className="flex gap-3 items-center">
               <input
