@@ -7,7 +7,7 @@
  * Based on K.S. Krishnamurti, "KP Reader VI: Horary Astrology"
  */
 const { getSubByNumber } = require('../data/kpSubTable');
-const { getAllPlanetPositions, getAyanamsa, dateToJulianDay } = require('./ephemeris');
+const { getAllPlanetPositions, getAyanamsa, dateToJulianDay, calcPlacidusCuspsFromAsc } = require('./ephemeris');
 const { calculateAllSignificators } = require('./kpSignificators');
 const { calculateKPRulingPlanets } = require('./kpRulingPlanets');
 const { analyzeYesNo } = require('./kpYesNo');
@@ -37,11 +37,13 @@ function calculateKPHorary(horaryNumber, date, latitude, longitude, questionCate
   const ayanamsa = getAyanamsa(jd);
   const planets = getAllPlanetPositions(jd);
 
-  // Step 3: Build equal house cusps from horary ascendant
-  const houses = [];
-  for (let i = 0; i < 12; i++) {
-    houses.push((ascendant + i * 30) % 360);
-  }
+  // Step 3: Build Placidus house cusps from horary ascendant
+  // KP system uses Placidus cusps. Convert sidereal ascendant → tropical → Placidus → sidereal
+  const tropicalAsc = ascendant + ayanamsa; // tropical = sidereal + ayanamsa
+  const placidus = calcPlacidusCuspsFromAsc(tropicalAsc, jd, latitude);
+  const houses = placidus.cusps.map(tropCusp => {
+    return ((tropCusp - ayanamsa) % 360 + 360) % 360;
+  });
 
   // Step 4: Calculate significators for all 12 houses
   const significators = calculateAllSignificators(houses, planets);
@@ -55,14 +57,15 @@ function calculateKPHorary(horaryNumber, date, latitude, longitude, questionCate
   // Step 7: Dasha balance from Moon's position
   const dashaBalance = calculateDashaBalance(planets.moon.longitude, date);
 
-  // Step 8: Event timing predictions
+  // Step 8: Event timing predictions (including Dasha-based long-term timing)
   const timing = calculateEventTiming(
     rulingPlanets.filtered,
     significators,
     planets,
     questionCategory,
     date,
-    houses
+    houses,
+    dashaBalance
   );
 
   // Build planet details with house placement, nakshatra, sub-lord

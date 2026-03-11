@@ -52,9 +52,13 @@ async function getCalculations(page = 1, limit = 20) {
   const [countResult, rows] = await Promise.all([
     sql`SELECT COUNT(*) as total FROM calculations`,
     sql`SELECT id, created_at, timestamp, question, options, location,
+         data->>'mode' as mode,
          data->'calculation'->'answerOption' as answer_option,
          data->'calculation'->'answerExplanation' as answer_explanation,
-         data->'lagnaInfo'->'sign' as lagna_sign
+         data->'lagnaInfo'->'sign' as lagna_sign,
+         data->>'questionCategory' as question_category,
+         data->'yesNo'->>'verdict' as kp_verdict,
+         data->'subEntry'->>'number' as horary_number
          FROM calculations ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
   ]);
 

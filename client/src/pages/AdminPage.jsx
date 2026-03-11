@@ -7,6 +7,7 @@ import CalculationBreakdown from '../components/CalculationBreakdown';
 import AnswerDisplay from '../components/AnswerDisplay';
 import LagnaInfo from '../components/LagnaInfo';
 import LanguageToggle from '../components/LanguageToggle';
+import KPResultPanel from '../components/KPResultPanel';
 
 function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -107,29 +108,35 @@ function CalcDetail({ calc, onBack }) {
         {lang === 'mr' ? 'गणना वेळ' : 'Calculated at'}: {timestamp}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* Left: Chart */}
-        <div className="lg:w-1/2 xl:w-3/5">
-          <div className="h-[500px]">
-            <KundaliChart3D chartData={calc} />
+      {calc.mode === 'kp' ? (
+        <div className="space-y-4">
+          <KPResultPanel result={calc} />
+        </div>
+      ) : (
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Left: Chart */}
+          <div className="lg:w-1/2 xl:w-3/5">
+            <div className="h-[500px]">
+              <KundaliChart3D chartData={calc} />
+            </div>
+          </div>
+
+          {/* Right: Details */}
+          <div className="lg:w-1/2 xl:w-2/5 space-y-4">
+            <LagnaInfo lagnaInfo={calc.lagnaInfo} timestamp={calc.timestamp} />
+            <AnswerDisplay
+              calculation={calc.calculation}
+              options={calc.options}
+              question={calc.question}
+            />
+            <CalculationBreakdown
+              calculation={calc.calculation}
+              rulingPlanets={calc.rulingPlanets}
+            />
+            <RulingPlanetsTable rulingPlanets={calc.rulingPlanets} />
           </div>
         </div>
-
-        {/* Right: Details */}
-        <div className="lg:w-1/2 xl:w-2/5 space-y-4">
-          <LagnaInfo lagnaInfo={calc.lagnaInfo} timestamp={calc.timestamp} />
-          <AnswerDisplay
-            calculation={calc.calculation}
-            options={calc.options}
-            question={calc.question}
-          />
-          <CalculationBreakdown
-            calculation={calc.calculation}
-            rulingPlanets={calc.rulingPlanets}
-          />
-          <RulingPlanetsTable rulingPlanets={calc.rulingPlanets} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -250,7 +257,7 @@ function Dashboard({ token, onLogout }) {
                     {lang === 'mr' ? 'प्रश्न' : 'Question'}
                   </th>
                   <th className="text-center py-2 px-3">
-                    {lang === 'mr' ? 'पसंती' : 'Prefs'}
+                    {lang === 'mr' ? 'प्रकार' : 'Mode'}
                   </th>
                   <th className="text-center py-2 px-3">
                     {lang === 'mr' ? 'उत्तर' : 'Answer'}
@@ -280,18 +287,29 @@ function Dashboard({ token, onLogout }) {
                     <td className="py-3 px-3 text-white max-w-[200px] truncate">
                       {calc.question || '—'}
                     </td>
-                    <td className="py-3 px-3 text-center text-white/60">
-                      {calc.options?.length || '—'}
-                    </td>
                     <td className="py-3 px-3 text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gold/20 text-gold font-bold text-sm">
-                        {calc.answer_option || '—'}
+                      <span className={`text-xs px-2 py-0.5 rounded ${calc.mode === 'kp' ? 'bg-purple-500/20 text-purple-400' : 'bg-gold/20 text-gold'}`}>
+                        {calc.mode === 'kp' ? 'KP' : 'Ank'}
                       </span>
                     </td>
+                    <td className="py-3 px-3 text-center">
+                      {calc.mode === 'kp' ? (
+                        <span className={`inline-flex items-center justify-center px-2 py-1 rounded text-xs font-bold ${
+                          calc.kp_verdict?.startsWith('YES') ? 'bg-emerald-500/20 text-emerald-400' :
+                          calc.kp_verdict === 'NO' ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/50'
+                        }`}>
+                          {calc.kp_verdict || '—'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gold/20 text-gold font-bold text-sm">
+                          {calc.answer_option || '—'}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-white/50 text-xs">
-                      {lang === 'mr'
-                        ? calc.lagna_sign?.mr
-                        : calc.lagna_sign?.en}
+                      {calc.mode === 'kp'
+                        ? `#${calc.horary_number || '—'} ${calc.question_category || ''}`
+                        : (lang === 'mr' ? calc.lagna_sign?.mr : calc.lagna_sign?.en)}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button

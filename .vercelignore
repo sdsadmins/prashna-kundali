@@ -1,0 +1,7 @@
+*.jpeg
+*.jpg
+*.png
+test-*.js
+kpdocs/
+apia/
+CLAUDE.md

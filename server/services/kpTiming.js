@@ -1,24 +1,589 @@
 /**
- * KP Event Timing Calculator
+ * KP Event Timing Calculator — Krishnamurti Method (KP Reader VI)
  *
- * From KP Reader VI: events materialize when transiting planets
- * reach positions governed by fruitful significators (common between
- * house significators and ruling planets).
+ * Algorithm:
+ * 1. Use 5-component ruling planets (Day Lord, Moon Star Lord, Moon Sign Lord,
+ *    Lagna Star Lord, Lagna Sign Lord)
+ * 2. Find zodiac positions where sign lord, star lord AND sub lord are ALL
+ *    ruling planets → narrow target degree ranges
+ * 3. Sun transit to those ranges → determines the MONTH
+ * 4. Moon transit to ruling-planet-governed positions + matching day lord
+ *    → determines the exact DAY
+ * 5. Day of week matching a ruling planet → confirms the date
  *
- * Timing hierarchy:
- * - Lagna transit: within hours (same day)
- * - Moon transit: within days (same month)
- * - Sun transit: within months (same year)
- * - Jupiter transit: within years
+ * Reference: K.S. Krishnamurti, "KP Reader VI", Section IV — Timing
  */
-const { calcPlanetPosition, calcHouses } = require('./ephemeris');
-const { dateToJulianDay } = require('./ephemeris');
-const { getSubByDegree } = require('../data/kpSubTable');
-const { getNakshatraFromDegree } = require('./nakshatra');
-const { NAKSHATRAS } = require('../data/constants');
+const { calcPlanetPosition, dateToJulianDay, getAyanamsa } = require('./ephemeris');
+const { KP_SUB_TABLE } = require('../data/kpSubTable');
+const { SIGNS, DAY_LORDS } = require('../data/constants');
+const { getQuestionHouses } = require('../data/kpQuestionHouses');
+const { getHousesSignifiedByPlanet } = require('./kpSignificators');
+
+// Map planet name to the day-of-week index (0=Sunday ... 6=Saturday)
+const PLANET_TO_DAY = {};
+DAY_LORDS.forEach(d => { PLANET_TO_DAY[d.lord] = d.day; });
+
+// Map Rahu/Ketu to their sign lord given their sidereal longitude
+function resolveNode(planet, planets) {
+  if (planet === 'rahu' || planet === 'ketu') {
+    if (planets && planets[planet]) {
+      const deg = planets[planet].longitude;
+      const signIdx = Math.floor(((deg % 360) + 360) % 360 / 30);
+      return SIGNS[signIdx].lord;
+    }
+    // Fallback: return the planet itself (will be matched as-is)
+    return planet;
+  }
+  return planet;
+}
+
+/**
+ * Build the set of ruling planet names, resolving Rahu/Ketu to their sign lords
+ * for matching purposes, but keeping originals too.
+ */
+function buildRulingSet(rulingPlanets, planets) {
+  const set = new Set();
+  for (const rp of rulingPlanets) {
+    set.add(rp);
+    // Also add what Rahu/Ketu represent
+    const resolved = resolveNode(rp, planets);
+    if (resolved !== rp) set.add(resolved);
+  }
+  return set;
+}
+
+/**
+ * Check if a planet is "in" the ruling set.
+ * Rahu/Ketu in the sub table match if their sign lord is a ruling planet.
+ */
+function isRulingPlanet(planet, rulingSet) {
+  if (rulingSet.has(planet)) return true;
+  // Rahu/Ketu in KP_SUB_TABLE: check if they represent a ruling planet
+  // For sub-table entries, Rahu/Ketu as lords should match if their sign lord
+  // is in the ruling set. But we don't have their current position here.
+  // Per KP methodology, Rahu acts as Saturn (its usual representative) and
+  // Ketu acts as Mars, unless overridden by sign placement.
+  // For the sub-table, the lords are fixed per nakshatra, so we check directly.
+  return false;
+}
+
+/**
+ * Find target degree ranges where sign lord, star lord, AND sub lord
+ * are ALL ruling planets.
+ *
+ * This is the core of Krishnamurti's timing method: narrowing from 360°
+ * down to a few specific degree ranges.
+ */
+function findTargetPositions(rulingPlanets, planets) {
+  const rulingSet = buildRulingSet(rulingPlanets, planets);
+  const positions = [];
+
+  for (const entry of KP_SUB_TABLE) {
+    const signLordMatch = rulingSet.has(entry.signLord);
+    const starLordMatch = rulingSet.has(entry.starLord);
+    const subLordMatch = rulingSet.has(entry.subLord);
+
+    if (signLordMatch && starLordMatch && subLordMatch) {
+      positions.push({
+        number: entry.number,
+        startDeg: entry.startDeg,
+        endDeg: entry.endDeg,
+        sign: entry.sign.en,
+        signLord: entry.signLord,
+        starLord: entry.starLord,
+        subLord: entry.subLord,
+      });
+    }
+  }
+
+  return positions;
+}
+
+/**
+ * Find "relaxed" target positions where at least sign lord AND star lord
+ * are ruling planets (sub lord may differ). Used as fallback for Moon transit
+ * day-finding.
+ */
+function findRelaxedPositions(rulingPlanets, planets) {
+  const rulingSet = buildRulingSet(rulingPlanets, planets);
+  const positions = [];
+
+  for (const entry of KP_SUB_TABLE) {
+    const signLordMatch = rulingSet.has(entry.signLord);
+    const starLordMatch = rulingSet.has(entry.starLord);
+
+    if (signLordMatch && starLordMatch) {
+      positions.push({
+        number: entry.number,
+        startDeg: entry.startDeg,
+        endDeg: entry.endDeg,
+        sign: entry.sign.en,
+        signLord: entry.signLord,
+        starLord: entry.starLord,
+        subLord: entry.subLord,
+      });
+    }
+  }
+
+  return positions;
+}
+
+/**
+ * Convert Julian Day to JS Date
+ */
+function julianDayToDate(jd) {
+  const ms = (jd - 2440587.5) * 86400000;
+  return new Date(ms);
+}
+
+/**
+ * Get day-of-week index (0=Sunday) from Julian Day
+ */
+function jdToDayOfWeek(jd) {
+  // JD 0 was a Monday, so (JD + 1) % 7 gives: 0=Mon, 1=Tue, etc.
+  // We want 0=Sun: shift by 1
+  return Math.floor(jd + 1.5) % 7;
+}
+
+/**
+ * Check if a degree falls within any of the given ranges.
+ */
+function isInRanges(deg, ranges) {
+  const d = ((deg % 360) + 360) % 360;
+  for (const r of ranges) {
+    if (d >= r.startDeg - 1e-10 && d < r.endDeg + 1e-10) {
+      return r;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find when the Sun transits into a target degree range.
+ * Sun moves ~1°/day, so stepping 1 day at a time is appropriate.
+ * Returns the first entry into a target range after startJd.
+ */
+function findSunTransit(startJd, targetPositions, maxDays = 365) {
+  const results = [];
+
+  for (let day = 1; day <= maxDays; day++) {
+    const jd = startJd + day;
+    const pos = calcPlanetPosition(jd, 'sun');
+    const deg = pos.longitude; // already sidereal
+
+    const match = isInRanges(deg, targetPositions);
+    if (match) {
+      const date = julianDayToDate(jd);
+      results.push({
+        date: date.toISOString().split('T')[0],
+        dateObj: date,
+        jd,
+        degree: deg,
+        targetRange: match,
+        dayOfWeek: jdToDayOfWeek(jd),
+      });
+      // Skip past this range to find the next distinct entry
+      // Sun moves ~1°/day, range is typically 1-3°, so skip a few days
+      while (day <= maxDays) {
+        day++;
+        const nextPos = calcPlanetPosition(startJd + day, 'sun');
+        if (!isInRanges(nextPos.longitude, [match])) break;
+      }
+      day--; // will be incremented by for loop
+      if (results.length >= 30) break; // enough for full-year coverage
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Find Moon transit dates within a date range where:
+ * 1. Moon is in a ruling-planet-governed position (sign+star match)
+ * 2. Day of week matches a ruling planet
+ *
+ * Moon moves ~13°/day, so step 0.25 days (6 hours).
+ */
+function findMoonTransitDates(startJd, endJd, targetPositions, relaxedPositions, rulingPlanets) {
+  const rulingDays = new Set();
+  for (const rp of rulingPlanets) {
+    if (PLANET_TO_DAY[rp] !== undefined) {
+      rulingDays.add(PLANET_TO_DAY[rp]);
+    }
+  }
+
+  const results = [];
+  const seenDates = new Set();
+  const step = 0.25; // 6-hour steps
+
+  for (let jd = startJd; jd <= endJd; jd += step) {
+    const pos = calcPlanetPosition(jd, 'moon');
+    const deg = pos.longitude;
+    const dayOfWeek = jdToDayOfWeek(jd);
+    const dateStr = julianDayToDate(jd).toISOString().split('T')[0];
+
+    if (seenDates.has(dateStr)) continue;
+
+    // Check strict match first (sign+star+sub all ruling)
+    let match = isInRanges(deg, targetPositions);
+    let matchType = 'strict';
+
+    // If no strict match, try relaxed (sign+star ruling)
+    if (!match) {
+      match = isInRanges(deg, relaxedPositions);
+      matchType = 'relaxed';
+    }
+
+    if (match && rulingDays.has(dayOfWeek)) {
+      seenDates.add(dateStr);
+      const dayName = DAY_LORDS[dayOfWeek].en;
+      results.push({
+        date: dateStr,
+        dateObj: julianDayToDate(jd),
+        jd,
+        degree: deg,
+        targetRange: match,
+        dayOfWeek,
+        dayName,
+        matchType,
+        confidence: matchType === 'strict' ? 'high' : 'medium',
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Find Dasha-based timing — when will a future Bhukti/Anthra period
+ * whose lord signifies favorable houses for the question category begin?
+ *
+ * KP principle: event fructifies when Dasha lord, Bhukti lord, AND Anthra lord
+ * are all significators of favorable houses for the question.
+ *
+ * @param {Object} dashaBalance - from calculateDashaBalance()
+ * @param {Object} significators - house significators from calculateAllSignificators()
+ * @param {string} questionCategory - e.g. 'marriage', 'job'
+ * @param {Date} judgmentDate - judgment date
+ * @returns {Object|null} Dasha-based timing prediction
+ */
+function findDashaTiming(dashaBalance, significators, questionCategory, judgmentDate) {
+  if (!dashaBalance || !significators || !questionCategory) return null;
+
+  const qHouses = getQuestionHouses(questionCategory);
+  const favorable = new Set(qHouses.favorable);
+  const now = judgmentDate.getTime();
+
+  // Check if a planet signifies any favorable house
+  function signifiesFavorable(planet) {
+    const housesSignified = getHousesSignifiedByPlanet(planet, significators);
+    return housesSignified.some(h => favorable.has(h.house));
+  }
+
+  // Score: how many favorable houses does a planet signify (weighted by level)
+  function favorableScore(planet) {
+    const housesSignified = getHousesSignifiedByPlanet(planet, significators);
+    let score = 0;
+    for (const h of housesSignified) {
+      if (favorable.has(h.house)) {
+        score += h.level === 'A' ? 4 : h.level === 'B' ? 3 : h.level === 'C' ? 2 : 1;
+      }
+    }
+    return score;
+  }
+
+  const mahaDashaLord = dashaBalance.mahaDasha.lord;
+  const mahaIsFavorable = signifiesFavorable(mahaDashaLord);
+
+  // Helper: search a list of bhuktis for favorable periods
+  function searchBhuktis(bhuktis, mahaLord, mahaFav, anthrasAvailable) {
+    const results = [];
+    for (const bhukti of bhuktis) {
+      const bEnd = new Date(bhukti.endDate).getTime();
+      if (bEnd <= now) continue;
+
+      const bhuktiFavorable = signifiesFavorable(bhukti.lord);
+      if (!bhuktiFavorable) continue;
+
+      const bStart = new Date(bhukti.startDate).getTime();
+      const periodStart = Math.max(bStart, now);
+      const confidence = mahaFav ? 'high' : 'medium';
+      const baseScore = (mahaFav ? favorableScore(mahaLord) : 0) + favorableScore(bhukti.lord);
+
+      // Drill into Anthras if available
+      if (anthrasAvailable && bhukti.anthras) {
+        for (const anthra of bhukti.anthras) {
+          const aEnd = new Date(anthra.endDate).getTime();
+          if (aEnd <= now) continue;
+          if (signifiesFavorable(anthra.lord)) {
+            const aStart = new Date(anthra.startDate).getTime();
+            results.push({
+              date: new Date(Math.max(aStart, now)).toISOString().split('T')[0],
+              endDate: new Date(aEnd).toISOString().split('T')[0],
+              mahaDasha: mahaLord,
+              bhukti: bhukti.lord,
+              anthra: anthra.lord,
+              confidence,
+              score: baseScore + favorableScore(anthra.lord),
+              method: 'dasha-anthra',
+              description: `${mahaLord}-${bhukti.lord}-${anthra.lord} Dasha period`,
+            });
+          }
+        }
+      }
+
+      // Bhukti-level match as fallback
+      if (results.length === 0) {
+        results.push({
+          date: new Date(periodStart).toISOString().split('T')[0],
+          endDate: bhukti.endDate.split('T')[0],
+          mahaDasha: mahaLord,
+          bhukti: bhukti.lord,
+          anthra: null,
+          confidence,
+          score: baseScore,
+          method: 'dasha-bhukti',
+          description: `${mahaLord}-${bhukti.lord} Dasha period`,
+        });
+      }
+    }
+    return results;
+  }
+
+  const bhuktis = dashaBalance.bhuktis || [];
+  // Search current Maha Dasha for favorable Bhukti/Anthra
+  // Anthra details are only available for current Bhukti (dashaBalance drills into it)
+  const results = searchBhuktis(bhuktis, mahaDashaLord, mahaIsFavorable, true);
+
+  // Sort by score (higher = better), then by date (earlier = better)
+  results.sort((a, b) => b.score - a.score || new Date(a.date) - new Date(b.date));
+
+  return {
+    periods: results.slice(0, 5),
+    best: results.length > 0 ? results[0] : null,
+    mahaDashaFavorable: mahaIsFavorable,
+  };
+}
+
+/**
+ * Calculate event timing predictions using Krishnamurti's method.
+ *
+ * @param {string[]} rulingPlanets - Filtered ruling planets array
+ * @param {Object} significators - House significators
+ * @param {Object} planets - Planet positions (sidereal)
+ * @param {string} questionCategory - Category of the question
+ * @param {Date} judgmentDate - Date/time of judgment
+ * @param {number[]} houses - House cusp degrees
+ * @returns {Object} Timing predictions
+ */
+function calculateEventTiming(rulingPlanets, significators, planets, questionCategory, judgmentDate, houses, dashaBalance) {
+  const jd = dateToJulianDay(judgmentDate);
+
+  // Step 1: Build target positions (sign + star + sub = all ruling planets)
+  const targetPositions = findTargetPositions(rulingPlanets, planets);
+
+  // Step 2: Build relaxed positions (sign + star = ruling) for Moon transit
+  const relaxedPositions = findRelaxedPositions(rulingPlanets, planets);
+
+  // Step 3: Sun transit — find when Sun enters target positions
+  const sunTransits = findSunTransit(jd, targetPositions, 365);
+  const sunTransit = sunTransits.length > 0 ? sunTransits[0] : null;
+
+  // Step 4: Moon transit — search around EACH Sun transit for Moon+DayLord matches
+  // The book method: Sun transit gives the month, Moon+DayLord within that month gives exact day.
+  // We must check ALL Sun transits, not just the first, because the correct month may be later.
+  let allMoonTransitResults = [];
+  const moonBySunTransit = []; // { sunTransit, moonResults[] } per Sun transit
+
+  for (const st of sunTransits) {
+    const searchStart = st.jd - 15;
+    const searchEnd = st.jd + 15;
+    const moonResults = findMoonTransitDates(
+      searchStart, searchEnd, targetPositions, relaxedPositions, rulingPlanets
+    );
+    moonBySunTransit.push({ sunTransit: st, moonResults });
+    allMoonTransitResults = allMoonTransitResults.concat(moonResults);
+  }
+
+  // First Sun transit's moon results for backward compat
+  const moonTransitResults = moonBySunTransit.length > 0 ? moonBySunTransit[0].moonResults : [];
+
+  // Also check near-term (next 60 days from judgment)
+  const nearTermMoon = findMoonTransitDates(
+    jd, jd + 60, targetPositions, relaxedPositions, rulingPlanets
+  );
+
+  // Step 5a: Dasha-based timing (long-term)
+  const dashaTiming = dashaBalance
+    ? findDashaTiming(dashaBalance, significators, questionCategory, judgmentDate)
+    : null;
+
+  // Step 5: Compile prominent dates
+  const prominentDates = [];
+
+  // Add Sun transit dates
+  for (const st of sunTransits.slice(0, 5)) {
+    const dayName = DAY_LORDS[st.dayOfWeek].en;
+    prominentDates.push({
+      date: st.date,
+      description: `Sun transits ${st.targetRange.sign} (${st.targetRange.signLord} sign, ${st.targetRange.starLord} star, ${st.targetRange.subLord} sub) at ${st.degree.toFixed(2)}° — ${dayName}`,
+      confidence: 'month-indicator',
+      source: 'sun-transit',
+    });
+  }
+
+  // Add Moon+DayLord matched dates from ALL Sun transits (deduplicated)
+  const seenMoonDates = new Set();
+  for (const mt of allMoonTransitResults) {
+    if (seenMoonDates.has(mt.date)) continue;
+    seenMoonDates.add(mt.date);
+    prominentDates.push({
+      date: mt.date,
+      description: `Moon in ${mt.targetRange.sign} (${mt.targetRange.signLord}/${mt.targetRange.starLord}/${mt.targetRange.subLord}), ${mt.dayName} — ${mt.matchType} match`,
+      confidence: mt.confidence,
+      source: 'moon-day-match',
+    });
+  }
+
+  // Add Dasha-based timing dates (long-term)
+  if (dashaTiming && dashaTiming.periods) {
+    for (const dp of dashaTiming.periods.slice(0, 3)) {
+      prominentDates.push({
+        date: dp.date,
+        endDate: dp.endDate,
+        description: `Dasha: ${dp.description}`,
+        confidence: dp.confidence,
+        source: 'dasha',
+      });
+    }
+  }
+
+  // Jupiter transit (longer term) — step 7 days, check ~2 years
+  const jupiterTransit = findSlowPlanetTransit('jupiter', jd, targetPositions, 7, 156);
+
+  // Saturn transit — step 7 days, check ~3 years
+  const saturnTransit = findSlowPlanetTransit('saturn', jd, targetPositions, 7, 156);
+
+  // Step 6: Determine best predicted date
+  // Strategy: Find the best Moon+DayLord match across ALL Sun transits.
+  // Priority order:
+  //   1. Strict Moon+DayLord matches (sign+star+sub all ruling) — highest confidence
+  //   2. Relaxed Moon+DayLord matches (sign+star ruling) — medium confidence
+  //   3. Sun transit alone — low confidence (month-level)
+  //   4. Jupiter transit — low confidence (year-level)
+  //
+  // Among multiple strict matches across different Sun transits, prefer the one
+  // closest to its parent Sun transit (tightest Sun-Moon alignment).
+  let bestPredictedDate = null;
+
+  // Collect all strict Moon matches across all Sun transits, tagged with parent Sun transit
+  const allStrictWithContext = [];
+  const allRelaxedWithContext = [];
+  for (const { sunTransit: st, moonResults } of moonBySunTransit) {
+    for (const mr of moonResults) {
+      const daysFromSun = Math.abs(mr.jd - st.jd);
+      const entry = { ...mr, parentSunDate: st.date, daysFromSun };
+      if (mr.matchType === 'strict') {
+        allStrictWithContext.push(entry);
+      } else {
+        allRelaxedWithContext.push(entry);
+      }
+    }
+  }
+
+  if (allStrictWithContext.length > 0) {
+    // Pick the strict match closest to its parent Sun transit
+    allStrictWithContext.sort((a, b) => a.daysFromSun - b.daysFromSun);
+    const best = allStrictWithContext[0];
+    bestPredictedDate = {
+      date: best.date,
+      dayName: best.dayName,
+      confidence: 'high',
+      method: 'moon-day-match',
+      description: 'Sun + Moon + Day Lord alignment',
+    };
+  } else if (allRelaxedWithContext.length > 0) {
+    allRelaxedWithContext.sort((a, b) => a.daysFromSun - b.daysFromSun);
+    const best = allRelaxedWithContext[0];
+    bestPredictedDate = {
+      date: best.date,
+      dayName: best.dayName,
+      confidence: 'medium',
+      method: 'moon-day-relaxed',
+      description: 'Sun + Moon transit alignment',
+    };
+  } else if (sunTransit) {
+    // No Moon match found, use Sun transit as month indicator
+    bestPredictedDate = {
+      date: sunTransit.date,
+      dayName: DAY_LORDS[sunTransit.dayOfWeek].en,
+      confidence: 'low',
+      method: 'sun-transit',
+      description: 'Sun transit (month-level estimate)',
+    };
+  } else if (jupiterTransit) {
+    bestPredictedDate = {
+      date: jupiterTransit.date,
+      confidence: 'low',
+      method: 'jupiter-transit',
+      description: 'Jupiter transit (year-level estimate)',
+    };
+  }
+
+  return {
+    fruitfulSignificators: rulingPlanets,
+    targetPositions,
+    targetPositionCount: targetPositions.length,
+    relaxedPositionCount: relaxedPositions.length,
+    bestPredictedDate,
+    sunTransit: sunTransit ? {
+      date: sunTransit.date,
+      degree: sunTransit.degree,
+      targetRange: sunTransit.targetRange,
+    } : null,
+    sunTransitAll: sunTransits.slice(0, 5).map(st => ({
+      date: st.date,
+      degree: st.degree,
+      sign: st.targetRange.sign,
+      signLord: st.targetRange.signLord,
+      starLord: st.targetRange.starLord,
+      subLord: st.targetRange.subLord,
+    })),
+    moonTransit: moonTransitResults.length > 0 ? moonTransitResults[0] : null,
+    moonTransitAll: allMoonTransitResults.slice(0, 10),
+    nearTermMoon: nearTermMoon.slice(0, 5),
+    prominentDates: prominentDates.slice(0, 15),
+    jupiterTransit,
+    saturnTransit,
+    dashaTiming,
+  };
+}
+
+/**
+ * Find next transit of a slow-moving planet (Jupiter/Saturn) into target ranges.
+ */
+function findSlowPlanetTransit(planetName, startJd, targetPositions, stepDays, maxSteps) {
+  for (let step = 1; step <= maxSteps; step++) {
+    const jd = startJd + step * stepDays;
+    const pos = calcPlanetPosition(jd, planetName);
+    const deg = pos.longitude;
+
+    const match = isInRanges(deg, targetPositions);
+    if (match) {
+      const date = julianDayToDate(jd);
+      return {
+        date: date.toISOString().split('T')[0],
+        degree: deg,
+        targetRange: match,
+      };
+    }
+  }
+  return null;
+}
 
 /**
  * Find fruitful significators — planets common to both house significators and ruling planets.
+ * Kept for backward compatibility.
  */
 function findFruitfulSignificators(significators, rulingPlanets, favorable) {
   const sigPlanets = new Set();
@@ -32,17 +597,15 @@ function findFruitfulSignificators(significators, rulingPlanets, favorable) {
     }
   }
 
-  // Common with ruling planets
   const fruitful = rulingPlanets.filter(p => sigPlanets.has(p));
-  return fruitful.length > 0 ? fruitful : rulingPlanets.slice(0, 3); // fallback to top ruling planets
+  return fruitful.length > 0 ? fruitful : rulingPlanets.slice(0, 3);
 }
 
 /**
- * Find degree positions governed by a set of planets (as star lords or sub lords).
- * Returns array of { startDeg, endDeg } ranges.
+ * Find degree positions governed by a set of planets.
+ * Kept for backward compatibility.
  */
 function findGovernedPositions(planets) {
-  const { KP_SUB_TABLE } = require('../data/kpSubTable');
   const positions = [];
   for (const entry of KP_SUB_TABLE) {
     if (planets.includes(entry.starLord) || planets.includes(entry.subLord)) {
@@ -58,91 +621,11 @@ function findGovernedPositions(planets) {
   return positions;
 }
 
-/**
- * Calculate when a transiting planet will reach a governed position.
- * Uses forward stepping.
- *
- * @param {string} planetName - Planet to track transit
- * @param {number} startJd - Starting Julian Day
- * @param {number[][]} governedRanges - Array of [startDeg, endDeg]
- * @param {number} stepDays - Step size in days
- * @param {number} maxSteps - Maximum steps to check
- * @returns {Object|null} { date, degree, range }
- */
-function findNextTransit(planetName, startJd, governedRanges, stepDays, maxSteps) {
-  for (let step = 1; step <= maxSteps; step++) {
-    const jd = startJd + step * stepDays;
-    const pos = calcPlanetPosition(jd, planetName);
-    const deg = pos.longitude;
-
-    for (const range of governedRanges) {
-      if (deg >= range.startDeg && deg < range.endDeg) {
-        const date = julianDayToDate(jd);
-        return {
-          date: date.toISOString(),
-          degree: deg,
-          range,
-          stepsAhead: step,
-        };
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Convert Julian Day to JS Date
- */
-function julianDayToDate(jd) {
-  // JD 2440587.5 = Unix epoch (1970-01-01 00:00 UTC)
-  const ms = (jd - 2440587.5) * 86400000;
-  return new Date(ms);
-}
-
-/**
- * Calculate event timing predictions.
- */
-function calculateEventTiming(rulingPlanets, significators, planets, questionCategory, judgmentDate, houses) {
-  const { getQuestionHouses } = require('../data/kpQuestionHouses');
-  const houseMapping = getQuestionHouses(questionCategory);
-  const favorable = houseMapping.favorable;
-
-  // Find fruitful significators
-  const fruitful = findFruitfulSignificators(significators, rulingPlanets, favorable);
-
-  // Find governed positions
-  const governedPositions = findGovernedPositions(fruitful);
-  const governedRanges = governedPositions.map(p => ({
-    startDeg: p.startDeg,
-    endDeg: p.endDeg,
-  }));
-
-  const jd = dateToJulianDay(judgmentDate);
-
-  // Moon transit (days) — step 0.5 day, check 60 days
-  const moonTransit = findNextTransit('moon', jd, governedRanges, 0.5, 120);
-
-  // Sun transit (months) — step 1 day, check 365 days
-  const sunTransit = findNextTransit('sun', jd, governedRanges, 1, 365);
-
-  // Jupiter transit (years) — step 7 days, check ~3 years
-  const jupiterTransit = findNextTransit('jupiter', jd, governedRanges, 7, 156);
-
-  // Saturn transit — step 7 days, check ~3 years
-  const saturnTransit = findNextTransit('saturn', jd, governedRanges, 7, 156);
-
-  return {
-    fruitfulSignificators: fruitful,
-    governedPositionCount: governedPositions.length,
-    moonTransit,
-    sunTransit,
-    jupiterTransit,
-    saturnTransit,
-  };
-}
-
 module.exports = {
   calculateEventTiming,
   findFruitfulSignificators,
   findGovernedPositions,
+  findTargetPositions,
+  findMoonTransitDates,
+  findSunTransit,
 };
