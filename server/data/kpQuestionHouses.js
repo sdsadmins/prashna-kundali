@@ -55,6 +55,34 @@ const KP_QUESTION_HOUSES = {
   // Book Ex.12: 5th/11th for speculation/lottery
   speculation:     { favorable: [2, 5, 11],     unfavorable: [6, 8, 12],     primaryCusp: 5 },
   lottery:         { favorable: [2, 5, 11],     unfavorable: [6, 8, 12],     primaryCusp: 5 },
+  // Book p.273-275: 3rd house = change of place, 10th = employment, 12th = new environment
+  transfer:        { favorable: [3, 10, 12],    unfavorable: [4, 8, 11],     primaryCusp: 3 },
+  // Book p.220-221: 6th cusp sub-lord decides borrowing. Moon=friendly, Venus=compromise, Saturn=delay
+  borrowing:       { favorable: [2, 6, 11],     unfavorable: [5, 8, 12],     primaryCusp: 6 },
+  // Book p.308: 11th cusp for cure. Houses 1,5,11 favorable for recovery
+  cure:            { favorable: [1, 5, 11],     unfavorable: [6, 8, 12],     primaryCusp: 11 },
+  // Book p.256: scholarship = non-refundable loan; judge 2 and 11
+  scholarship:     { favorable: [2, 6, 11],     unfavorable: [8, 12],        primaryCusp: 11 },
+  // Book p.309: houses 2(family), 8(reunion from 7th), 11(desire) for return of missing person
+  return:          { favorable: [2, 7, 11],     unfavorable: [3, 9, 12],     primaryCusp: 11 },
+  // Book p.299: reinstatement = judge 2, 6, 10. Sub-lord of 10th cusp decides
+  reinstatement:   { favorable: [2, 6, 10],     unfavorable: [1, 5, 9],      primaryCusp: 10 },
+  // Book p.189: competitive exam = 4th cusp (education), houses 4,9,11 for success
+  competitive_exam:{ favorable: [4, 9, 11],     unfavorable: [3, 8, 12],     primaryCusp: 4 },
+  // Separation: 7th cusp, houses 1,6,10 support separation (negation of marriage houses)
+  divorce:         { favorable: [1, 6, 10],     unfavorable: [2, 7, 11],     primaryCusp: 7 },
+  // Surgery: 1st cusp (body), 8th=surgery, 1+11=recovery, 5=treatment success
+  surgery:         { favorable: [1, 5, 8, 11],  unfavorable: [6, 12],        primaryCusp: 1 },
+  // 8th cusp = others' wealth/legacy. Houses 2,8,11 for receiving inheritance
+  inheritance:     { favorable: [2, 8, 11],     unfavorable: [6, 12],        primaryCusp: 8 },
+  // Government benefit: 11th cusp (gains), 6th=service, 10th=government authority
+  government_benefit: { favorable: [6, 10, 11], unfavorable: [5, 8, 12],     primaryCusp: 11 },
+  // Debt recovery: 6th cusp (debtor pays), houses 2,6,11 for money recovery
+  debt_recovery:   { favorable: [2, 6, 11],     unfavorable: [5, 8, 12],     primaryCusp: 6 },
+  // Reconciliation: 7th cusp (partner), houses 2,5,7,11 for reunion
+  reconciliation:  { favorable: [2, 5, 7, 11],  unfavorable: [1, 6, 10, 12], primaryCusp: 7 },
+  // Travel safety: 9th cusp (journey), houses 3,9,11 for safe travel
+  travel_safety:   { favorable: [3, 9, 11],     unfavorable: [8, 12],        primaryCusp: 9 },
   general:         { favorable: [1, 9, 11],     unfavorable: [6, 8, 12],     primaryCusp: 11 },
 };
 

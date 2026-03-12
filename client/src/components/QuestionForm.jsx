@@ -1,24 +1,283 @@
 import { useState, useEffect } from 'react';
 import { useI18n } from '../i18n/useI18n';
 
-const QUESTION_CATEGORIES = [
-  { key: 'general', en: 'General', mr: 'सामान्य' },
-  { key: 'marriage', en: 'Marriage', mr: 'विवाह' },
-  { key: 'finance', en: 'Finance / Money', mr: 'आर्थिक' },
-  { key: 'job', en: 'Job / Career', mr: 'नोकरी' },
-  { key: 'promotion', en: 'Promotion', mr: 'पदोन्नती' },
-  { key: 'health', en: 'Health / Recovery', mr: 'आरोग्य' },
-  { key: 'education', en: 'Education', mr: 'शिक्षण' },
-  { key: 'travel', en: 'Travel', mr: 'प्रवास' },
-  { key: 'property', en: 'Property / House', mr: 'मालमत्ता' },
-  { key: 'vehicle', en: 'Vehicle', mr: 'वाहन' },
-  { key: 'children', en: 'Children', mr: 'अपत्य' },
-  { key: 'legal', en: 'Legal / Court', mr: 'कायदेशीर' },
-  { key: 'love', en: 'Love / Romance', mr: 'प्रेम' },
-  { key: 'business', en: 'Business', mr: 'व्यवसाय' },
-  { key: 'lost_item', en: 'Lost Item', mr: 'हरवलेली वस्तू' },
-  { key: 'election', en: 'Election / Competition', mr: 'निवडणूक' },
+// Grouped categories with bilingual labels and dropdown hints
+const QUESTION_CATEGORY_GROUPS = [
+  { group: { en: 'Personal & Family', mr: 'वैयक्तिक आणि कुटुंब' }, items: [
+    { key: 'marriage', en: 'Marriage', mr: 'विवाह', hint: { en: 'Will I get married?', mr: 'लग्न होईल का?' } },
+    { key: 'divorce', en: 'Divorce / Separation', mr: 'घटस्फोट', hint: { en: 'Will separation happen?', mr: 'विभक्त होईल का?' } },
+    { key: 'reconciliation', en: 'Reconciliation', mr: 'पुनर्मिलन', hint: { en: 'Will we reunite?', mr: 'पुन्हा एकत्र येऊ का?' } },
+    { key: 'love', en: 'Love / Romance', mr: 'प्रेम', hint: { en: 'Will love succeed?', mr: 'प्रेम यशस्वी होईल?' } },
+    { key: 'children', en: 'Children', mr: 'अपत्य', hint: { en: 'Will I have children?', mr: 'मूल होईल का?' } },
+    { key: 'pregnancy', en: 'Pregnancy', mr: 'गर्भधारणा', hint: { en: 'Will I conceive?', mr: 'गर्भधारणा होईल?' } },
+    { key: 'missing_person', en: 'Missing Person', mr: 'बेपत्ता व्यक्ती', hint: { en: 'Will they return?', mr: 'ते परत येतील?' } },
+  ]},
+  { group: { en: 'Career & Finance', mr: 'करिअर आणि अर्थ' }, items: [
+    { key: 'job', en: 'Job / Career', mr: 'नोकरी', hint: { en: 'Will I get the job?', mr: 'नोकरी मिळेल?' } },
+    { key: 'promotion', en: 'Promotion', mr: 'पदोन्नती', hint: { en: 'Will I get promoted?', mr: 'पदोन्नती होईल?' } },
+    { key: 'transfer', en: 'Transfer', mr: 'बदली', hint: { en: 'Will I get transferred?', mr: 'बदली होईल?' } },
+    { key: 'reinstatement', en: 'Reinstatement', mr: 'पुनर्स्थापना', hint: { en: 'Will I get my job back?', mr: 'नोकरी परत मिळेल?' } },
+    { key: 'business', en: 'Business', mr: 'व्यवसाय', hint: { en: 'Will business succeed?', mr: 'व्यवसाय यशस्वी होईल?' } },
+    { key: 'partnership', en: 'Partnership', mr: 'भागीदारी', hint: { en: 'Will partnership work?', mr: 'भागीदारी यशस्वी?' } },
+    { key: 'finance', en: 'Finance / Money', mr: 'आर्थिक', hint: { en: 'Will I get money?', mr: 'पैसे मिळतील?' } },
+    { key: 'loan_repayment', en: 'Loan Repayment', mr: 'कर्ज फेड', hint: { en: 'Will loan be repaid?', mr: 'कर्ज फिटेल?' } },
+    { key: 'borrowing', en: 'Borrowing', mr: 'उधारी', hint: { en: 'Will I get a loan?', mr: 'कर्ज मिळेल?' } },
+    { key: 'debt_recovery', en: 'Debt Recovery', mr: 'कर्ज वसुली', hint: { en: 'Will debtor pay back?', mr: 'कर्जदार पैसे देईल?' } },
+    { key: 'government_benefit', en: 'Government Benefit', mr: 'शासकीय लाभ', hint: { en: 'Pension, subsidy, grant?', mr: 'पेन्शन, अनुदान?' } },
+    { key: 'inheritance', en: 'Inheritance', mr: 'वारसा', hint: { en: 'Will I receive inheritance?', mr: 'वारसा मिळेल?' } },
+    { key: 'lottery', en: 'Lottery / Speculation', mr: 'लॉटरी / सट्टा', hint: { en: 'Will I win?', mr: 'जिंकेन का?' } },
+    { key: 'prosperity', en: 'Prosperity / Gains', mr: 'समृद्धी', hint: { en: 'Will I prosper?', mr: 'समृद्धी होईल?' } },
+  ]},
+  { group: { en: 'Education', mr: 'शिक्षण' }, items: [
+    { key: 'education', en: 'Education', mr: 'शिक्षण', hint: { en: 'Will I pass exams?', mr: 'परीक्षा उत्तीर्ण होईल?' } },
+    { key: 'higher_education', en: 'Higher Education', mr: 'उच्च शिक्षण', hint: { en: 'Masters, PhD admission?', mr: 'एमए, पीएचडी प्रवेश?' } },
+    { key: 'competitive_exam', en: 'Competitive Exam', mr: 'स्पर्धा परीक्षा', hint: { en: 'UPSC, MPSC, NEET, JEE...', mr: 'UPSC, MPSC, NEET...' } },
+    { key: 'scholarship', en: 'Scholarship', mr: 'शिष्यवृत्ती', hint: { en: 'Will I get scholarship?', mr: 'शिष्यवृत्ती मिळेल?' } },
+    { key: 'foreign_study', en: 'Foreign Study', mr: 'परदेशी शिक्षण', hint: { en: 'Study abroad admission?', mr: 'परदेशी शिक्षण मिळेल?' } },
+  ]},
+  { group: { en: 'Health', mr: 'आरोग्य' }, items: [
+    { key: 'health', en: 'Health / Recovery', mr: 'आरोग्य', hint: { en: 'Will I recover?', mr: 'बरे होईल?' } },
+    { key: 'cure', en: 'Cure / Treatment', mr: 'उपचार', hint: { en: 'Will treatment work?', mr: 'उपचार यशस्वी?' } },
+    { key: 'surgery', en: 'Surgery', mr: 'शस्त्रक्रिया', hint: { en: 'Will surgery succeed?', mr: 'शस्त्रक्रिया यशस्वी?' } },
+  ]},
+  { group: { en: 'Travel & Property', mr: 'प्रवास आणि मालमत्ता' }, items: [
+    { key: 'travel', en: 'Travel', mr: 'प्रवास', hint: { en: 'Will journey happen?', mr: 'प्रवास होईल?' } },
+    { key: 'travel_safety', en: 'Travel Safety', mr: 'प्रवास सुरक्षा', hint: { en: 'Will journey be safe?', mr: 'प्रवास सुरक्षित?' } },
+    { key: 'foreign_travel', en: 'Foreign Travel', mr: 'परदेश प्रवास', hint: { en: 'Visa, settle abroad?', mr: 'व्हिसा, परदेश?' } },
+    { key: 'property', en: 'Property / House', mr: 'मालमत्ता', hint: { en: 'Will I buy/sell?', mr: 'खरेदी/विक्री होईल?' } },
+    { key: 'vehicle', en: 'Vehicle', mr: 'वाहन', hint: { en: 'Will I get a vehicle?', mr: 'वाहन मिळेल?' } },
+  ]},
+  { group: { en: 'Legal', mr: 'कायदेशीर' }, items: [
+    { key: 'legal', en: 'Legal / Court', mr: 'कायदेशीर', hint: { en: 'Will I win the case?', mr: 'केस जिंकेन?' } },
+    { key: 'imprisonment', en: 'Imprisonment', mr: 'कारावास', hint: { en: 'Will they be jailed?', mr: 'तुरुंगवास होईल?' } },
+    { key: 'election', en: 'Election / Competition', mr: 'निवडणूक', hint: { en: 'Will I/they win?', mr: 'जिंकतील का?' } },
+  ]},
+  { group: { en: 'Other', mr: 'इतर' }, items: [
+    { key: 'lost_item', en: 'Lost Item', mr: 'हरवलेली वस्तू', hint: { en: 'Will I find it?', mr: 'सापडेल का?' } },
+    { key: 'general', en: 'General', mr: 'सामान्य', hint: { en: 'Any yes/no question', mr: 'कोणताही प्रश्न' } },
+  ]},
 ];
+
+// Rich keyword dictionary for auto-detection (EN + MR + HI)
+// Priority: specific categories checked before general ones
+const CATEGORY_KEYWORDS = {
+  competitive_exam: [
+    'competitive exam', 'competitive examination', 'upsc', 'mpsc', 'ssc', 'gate',
+    'neet', 'jee', 'cat exam', 'entrance exam', 'civil service', 'ias', 'ips',
+    'bank exam', 'railway exam', 'defence exam', 'nda', 'cds', 'clat',
+    'स्पर्धा परीक्षा', 'प्रतियोगी परीक्षा', 'प्रवेश परीक्षा',
+    'यूपीएससी', 'एमपीएससी',
+  ],
+  foreign_study: [
+    'study abroad', 'foreign study', 'foreign university', 'overseas education',
+    'ms abroad', 'mba abroad', 'gre', 'toefl', 'ielts', 'study visa',
+    'परदेशी शिक्षण', 'विदेश में पढ़ाई',
+  ],
+  foreign_travel: [
+    'abroad', 'foreign country', 'overseas', 'visa', 'immigration', 'emigrate',
+    'green card', 'h1b', 'passport', 'settle abroad', 'go to usa', 'go to uk',
+    'go to canada', 'go to australia', 'foreign land', 'foreign trip',
+    'परदेश', 'परदेशात', 'विदेश', 'विदेश यात्रा', 'व्हिसा',
+  ],
+  higher_education: [
+    'higher education', 'masters', 'phd', 'doctorate', 'post graduate',
+    'postgraduate', 'mba', 'mtech', 'msc', 'ma degree',
+    'उच्च शिक्षण', 'पदव्युत्तर', 'एमबीए',
+  ],
+  loan_repayment: [
+    'loan repay', 'repay loan', 'loan repayment', 'pay off loan', 'emi',
+    'mortgage repay', 'clear debt', 'settle loan',
+    'कर्ज फेड', 'कर्ज फिटेल', 'लोन भरणे',
+  ],
+  debt_recovery: [
+    'debt recovery', 'recover debt', 'money back from', 'debtor', 'owed money',
+    'will he pay', 'will she pay', 'return my money', 'get money back',
+    'कर्ज वसुली', 'पैसे परत', 'उधार परत',
+  ],
+  government_benefit: [
+    'government benefit', 'pension', 'subsidy', 'government grant', 'sarkari',
+    'govt scheme', 'government scheme', 'social security', 'provident fund', 'pf',
+    'शासकीय लाभ', 'पेन्शन', 'अनुदान', 'सरकारी योजना',
+  ],
+  travel_safety: [
+    'travel safe', 'journey safe', 'safe travel', 'travel safety', 'accident',
+    'road safety', 'flight safe', 'dangerous journey',
+    'प्रवास सुरक्षित', 'प्रवास सुरक्षा', 'अपघात',
+  ],
+  missing_person: [
+    'missing person', 'missing child', 'missing husband', 'missing wife',
+    'gone missing', 'disappeared', 'run away', 'absconding', 'whereabouts',
+    'बेपत्ता', 'हरवलेली व्यक्ती', 'लापता', 'गायब',
+  ],
+  lost_item: [
+    'lost item', 'lost thing', 'lost gold', 'lost ring', 'lost phone', 'lost wallet',
+    'lost jewel', 'stolen', 'theft', 'missing item', 'find my', 'recover item',
+    'हरवलेली वस्तू', 'चोरी', 'सापडेल', 'गहाळ',
+    'खोया हुआ', 'चोरी हुआ',
+  ],
+  divorce: [
+    'divorce', 'separation', 'split up', 'break up', 'breakup', 'alimony',
+    'separate from', 'end marriage', 'leave husband', 'leave wife',
+    'घटस्फोट', 'विभक्त', 'तलाक', 'अलगाव',
+  ],
+  reconciliation: [
+    'reconcile', 'reconciliation', 'reunite', 'get back together', 'patch up',
+    'make up with', 'come back to me',
+    'पुनर्मिलन', 'परत येईल', 'एकत्र येऊ',
+  ],
+  surgery: [
+    'surgery', 'operation', 'surgical', 'transplant', 'bypass', 'appendix',
+    'knee replacement', 'hip replacement', 'c-section', 'cesarean',
+    'शस्त्रक्रिया', 'ऑपरेशन', 'सर्जरी',
+  ],
+  cure: [
+    'cure', 'treatment', 'therapy', 'medicine work', 'remedy', 'heal',
+    'ayurvedic', 'homeopathy', 'chemotherapy',
+    'उपचार', 'इलाज', 'दवाई',
+  ],
+  pregnancy: [
+    'pregnant', 'pregnancy', 'conceive', 'conception', 'baby', 'expecting',
+    'fertility', 'ivf', 'iui',
+    'गर्भवती', 'गर्भधारणा', 'गर्भ',
+  ],
+  marriage: [
+    'marry', 'marriage', 'married', 'wedding', 'spouse', 'wife', 'husband',
+    'bride', 'groom', 'engagement', 'engaged', 'rishta', 'alliance',
+    'nikah', 'shaadi', 'manglik', 'matrimony', 'wedlock', 'match',
+    'विवाह', 'लग्न', 'नवरा', 'बायको', 'वधू', 'वर', 'साखरपुडा', 'मंगलसूत्र',
+    'शादी', 'पत्नी', 'पति', 'दुल्हन', 'दूल्हा', 'रिश्ता', 'मंगनी',
+  ],
+  job: [
+    'job', 'employment', 'career', 'position', 'hire', 'hired', 'get selected',
+    'recruitment', 'interview', 'offer letter', 'joining', 'resign', 'placement',
+    'naukri', 'नोकरी', 'कामावर', 'नियुक्ती', 'नौकरी', 'रोजगार',
+  ],
+  promotion: [
+    'promotion', 'promoted', 'increment', 'raise', 'appraisal', 'hike',
+    'पदोन्नती', 'वेतनवाढ', 'तरक्की',
+  ],
+  transfer: [
+    'transfer', 'transferred', 'posting', 'relocation', 'deputation',
+    'बदली', 'स्थानांतर', 'तबादला',
+  ],
+  reinstatement: [
+    'reinstate', 'reinstatement', 'get job back', 'rejoin', 'suspended',
+    'termination appeal', 'dismissal appeal',
+    'पुनर्स्थापना', 'बहाली',
+  ],
+  finance: [
+    'money', 'financial', 'income', 'earning', 'salary', 'payment', 'dues',
+    'profit', 'revenue', 'wealth', 'rich',
+    'पैसे', 'आर्थिक', 'उत्पन्न', 'कमाई', 'धन',
+  ],
+  borrowing: [
+    'borrow', 'borrowing', 'loan', 'lend', 'credit', 'mortgage',
+    'कर्ज', 'उधार', 'लोन',
+  ],
+  inheritance: [
+    'inheritance', 'inherit', 'will property', 'ancestral', 'legacy',
+    'father property', 'mother property', 'family property',
+    'वारसा', 'पैतृक', 'विरासत',
+  ],
+  lottery: [
+    'lottery', 'gamble', 'gambling', 'speculation', 'jackpot', 'raffle',
+    'betting', 'satta', 'matka', 'lucky draw',
+    'लॉटरी', 'सट्टा', 'जुगार', 'लकी ड्रॉ',
+  ],
+  prosperity: [
+    'prosperity', 'prosper', 'flourish', 'gains', 'successful', 'success',
+    'progress', 'growth',
+    'समृद्धी', 'भरभराट', 'प्रगती', 'सफलता',
+  ],
+  education: [
+    'education', 'exam', 'study', 'school', 'college', 'university', 'degree',
+    'pass', 'fail', 'result', 'marks', 'grade', 'admission',
+    'शिक्षण', 'परीक्षा', 'अभ्यास', 'शाळा', 'कॉलेज',
+    'पढ़ाई', 'पास', 'फेल',
+  ],
+  scholarship: [
+    'scholarship', 'stipend', 'fellowship', 'bursary', 'grant',
+    'शिष्यवृत्ती', 'छात्रवृत्ती',
+  ],
+  health: [
+    'health', 'sick', 'illness', 'disease', 'unwell', 'fever', 'diagnosed',
+    'hospital', 'icu', 'critical', 'condition', 'survive', 'recover',
+    'cancer', 'diabetes', 'heart', 'kidney', 'liver',
+    'आरोग्य', 'आजार', 'तब्येत', 'बीमारी', 'स्वास्थ्य', 'बरे',
+  ],
+  children: [
+    'child', 'son', 'daughter', 'kids', 'offspring',
+    'मुलगा', 'मुलगी', 'अपत्य', 'बेटा', 'बेटी', 'संतान',
+  ],
+  property: [
+    'property', 'house', 'flat', 'apartment', 'land', 'plot', 'real estate',
+    'buy house', 'sell house', 'buy flat', 'sell flat', 'construction',
+    'मालमत्ता', 'घर', 'फ्लॅट', 'जमीन', 'भूखंड',
+  ],
+  vehicle: [
+    'vehicle', 'car', 'bike', 'scooter', 'motorcycle', 'truck', 'bus',
+    'buy car', 'new car', 'new bike',
+    'वाहन', 'गाडी', 'कार', 'बाइक', 'स्कूटर',
+  ],
+  legal: [
+    'legal', 'court', 'case', 'lawsuit', 'litigation', 'advocate', 'lawyer',
+    'judge', 'verdict', 'bail', 'acquit', 'trial', 'hearing',
+    'कायदेशीर', 'न्यायालय', 'खटला', 'केस', 'वकील',
+    'कोर्ट', 'मुकदमा',
+  ],
+  imprisonment: [
+    'prison', 'jail', 'imprison', 'arrested', 'custody', 'detention',
+    'behind bars', 'locked up', 'sentence',
+    'कारावास', 'तुरुंग', 'अटक', 'जेल', 'कैद',
+  ],
+  election: [
+    'election', 'vote', 'candidate', 'contest', 'political', 'win election',
+    'निवडणूक', 'मतदान', 'उमेदवार', 'चुनाव',
+  ],
+  business: [
+    'business', 'startup', 'start-up', 'enterprise', 'venture', 'company',
+    'firm', 'shop', 'store', 'trade', 'commerce',
+    'व्यवसाय', 'उद्योग', 'दुकान', 'व्यापार', 'कारोबार',
+  ],
+  partnership: [
+    'partner', 'partnership', 'co-founder', 'joint venture', 'collaboration',
+    'भागीदारी', 'साझेदारी',
+  ],
+  love: [
+    'love', 'romance', 'relationship', 'boyfriend', 'girlfriend', 'dating',
+    'affair', 'crush', 'propose',
+    'प्रेम', 'प्रियकर', 'प्रेयसी', 'प्यार', 'इश्क',
+  ],
+  travel: [
+    'travel', 'trip', 'journey', 'tour', 'visit', 'go to', 'moving',
+    'प्रवास', 'सफर', 'यात्रा',
+  ],
+};
+
+// Priority order for auto-detection: specific before general
+const DETECT_PRIORITY = [
+  'competitive_exam', 'foreign_study', 'foreign_travel', 'higher_education',
+  'loan_repayment', 'debt_recovery', 'government_benefit', 'travel_safety',
+  'missing_person', 'lost_item',
+  'divorce', 'reconciliation', 'surgery', 'cure', 'pregnancy',
+  'marriage', 'job', 'promotion', 'transfer', 'reinstatement',
+  'finance', 'borrowing', 'inheritance', 'lottery', 'prosperity',
+  'education', 'scholarship',
+  'health', 'children', 'property', 'vehicle',
+  'legal', 'imprisonment', 'election',
+  'business', 'partnership', 'love', 'travel',
+];
+
+function detectCategory(text) {
+  const normalized = text.toLowerCase();
+  for (const cat of DETECT_PRIORITY) {
+    const keywords = CATEGORY_KEYWORDS[cat] || [];
+    for (const kw of keywords) {
+      if (normalized.includes(kw.toLowerCase())) return cat;
+    }
+  }
+  return null;
+}
 
 export default function QuestionForm({ onCalculate, isLoading, initialMode, onModeChange }) {
   const { t, lang } = useI18n();
@@ -35,8 +294,25 @@ export default function QuestionForm({ onCalculate, isLoading, initialMode, onMo
     lang === 'mr' ? 'नाही' : 'No',
   ]);
   const [horaryNumber, setHoraryNumber] = useState('');
-  const [questionCategory, setQuestionCategory] = useState('general');
+  const [questionCategory, setQuestionCategory] = useState('');
   const [kpQuestionType, setKpQuestionType] = useState('yesno');
+  const [autoDetected, setAutoDetected] = useState(false);
+  const [showCategoryHelp, setShowCategoryHelp] = useState(false);
+
+  // Auto-detect category from question text
+  useEffect(() => {
+    if (mode === 'kp' && question.trim()) {
+      const detected = detectCategory(question);
+      if (detected) {
+        setQuestionCategory(detected);
+        setAutoDetected(true);
+      } else {
+        setAutoDetected(false);
+      }
+    } else {
+      setAutoDetected(false);
+    }
+  }, [question, mode]);
 
   useEffect(() => {
     if (questionType === 'yesno') {
@@ -84,7 +360,7 @@ export default function QuestionForm({ onCalculate, isLoading, initialMode, onMo
 
   const isSubmitDisabled = isLoading || !question.trim() ||
     (mode === 'ank' && !allOptionsFilled) ||
-    (mode === 'kp' && (!horaryNumber || parseInt(horaryNumber) < 1 || parseInt(horaryNumber) > 249));
+    (mode === 'kp' && (!horaryNumber || parseInt(horaryNumber) < 1 || parseInt(horaryNumber) > 249 || !questionCategory));
 
   return (
     <div className="card-glass p-6 space-y-5">
@@ -202,18 +478,70 @@ export default function QuestionForm({ onCalculate, isLoading, initialMode, onMo
           <div>
             <label className="block text-purple-300 text-sm font-medium mb-2">
               {lang === 'mr' ? 'प्रश्न विषय' : 'Question Category'}
+              <span className="text-red-400 ml-1">*</span>
             </label>
             <select
               value={questionCategory}
-              onChange={(e) => setQuestionCategory(e.target.value)}
-              className="w-full bg-white/5 border border-purple-500/30 rounded-lg p-3 text-white focus:border-purple-400/60 focus:outline-none appearance-none cursor-pointer"
+              onChange={(e) => { setQuestionCategory(e.target.value); setAutoDetected(false); }}
+              className={`w-full bg-white/5 border rounded-lg p-3 text-white focus:border-purple-400/60 focus:outline-none appearance-none cursor-pointer ${
+                !questionCategory ? 'border-red-400/50' : 'border-purple-500/30'
+              }`}
             >
-              {QUESTION_CATEGORIES.map((cat) => (
-                <option key={cat.key} value={cat.key} className="bg-gray-900 text-white">
-                  {lang === 'mr' ? cat.mr : cat.en}
-                </option>
+              <option value="" disabled className="bg-gray-900 text-white/50">
+                {lang === 'mr' ? '-- प्रश्न प्रकार निवडा --' : '-- Select Category --'}
+              </option>
+              {QUESTION_CATEGORY_GROUPS.map((g) => (
+                <optgroup key={g.group.en} label={lang === 'mr' ? g.group.mr : g.group.en} className="bg-gray-900 text-white">
+                  {g.items.map((cat) => (
+                    <option key={cat.key} value={cat.key} className="bg-gray-900 text-white">
+                      {lang === 'mr' ? `${cat.mr} (${cat.hint.mr})` : `${cat.en} (${cat.hint.en})`}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
+            {autoDetected && questionCategory && (
+              <p className="text-red-400 text-xs mt-1">
+                {lang === 'mr'
+                  ? '⚠️ प्रश्न प्रकार स्वयं ओळखला. कृपया योग्य प्रकार तपासा.'
+                  : '⚠️ Category auto-detected. Please verify correct category.'}
+              </p>
+            )}
+            {!questionCategory && question.trim() && (
+              <p className="text-red-400/70 text-xs mt-1">
+                {lang === 'mr' ? 'कृपया प्रश्न प्रकार निवडा' : 'Please select a question category'}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowCategoryHelp(!showCategoryHelp)}
+              className="mt-2 text-xs text-white/40 hover:text-white/70 bg-transparent border-none cursor-pointer transition-colors"
+            >
+              {showCategoryHelp ? '▼' : '▶'} {lang === 'mr' ? '❓ प्रकार कसा निवडावा?' : '❓ How to choose category?'}
+            </button>
+            {showCategoryHelp && (
+              <div className="mt-2 text-xs text-white/60 bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
+                <p className="text-purple-300 font-medium">
+                  {lang === 'mr'
+                    ? 'KP होरारी नेहमी प्रश्नकर्त्याच्या दृष्टिकोनातून विश्लेषण करते.'
+                    : 'KP Horary always analyzes from YOUR perspective as the querist.'}
+                </p>
+                <div>
+                  <p className="text-white/50 mb-1">{lang === 'mr' ? 'अमूर्त/जागतिक प्रश्नांसाठी, वैयक्तिक प्रभाव म्हणून विचारा:' : 'For abstract/world events, frame as personal impact:'}</p>
+                  <div className="pl-2 space-y-0.5">
+                    <p className="text-red-400/70">✗ {lang === 'mr' ? '"युद्ध होईल का?"' : '"Will there be war?"'}</p>
+                    <p className="text-green-400/70">✓ {lang === 'mr' ? '"युद्धामुळे माझ्या सुरक्षिततेवर परिणाम होईल?" → प्रवास सुरक्षा' : '"Will the war affect my safety?" → Travel Safety'}</p>
+                    <p className="text-green-400/70">✓ {lang === 'mr' ? '"युद्धामुळे माझ्या व्यवसायावर परिणाम होईल?" → व्यवसाय' : '"Will the war impact my business?" → Business'}</p>
+                    <p className="text-green-400/70">✓ {lang === 'mr' ? '"सैन्यातील माझा मुलगा सुरक्षित आहे?" → आरोग्य' : '"Will my son in the army be safe?" → Health'}</p>
+                  </div>
+                </div>
+                <p className="text-white/40 border-t border-white/10 pt-2">
+                  {lang === 'mr'
+                    ? 'कोणताही प्रकार जुळत नसल्यास → "सामान्य" निवडा (गृह ११ = इच्छापूर्ती)'
+                    : 'If no category fits → select "General" (house 11 = fulfillment of desires)'}
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}
