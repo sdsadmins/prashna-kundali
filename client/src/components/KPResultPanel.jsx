@@ -46,6 +46,48 @@ function getPredictedDate(timing) {
   return null;
 }
 
+function HowItWorksTooltip({ lang }) {
+  return (
+    <span className="relative group cursor-help ml-2">
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-purple-400/50 text-purple-300 text-[10px] leading-none select-none">?</span>
+      <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-[340px] bg-[#1a1025] border border-purple-500/30 rounded-xl shadow-2xl p-4 text-xs text-white/80 leading-relaxed">
+        <div className="text-purple-300 font-semibold mb-2">
+          {lang === 'mr' ? 'KP होरारी कसे काम करते?' : 'How KP Horary Works'}
+        </div>
+        <div className="space-y-2.5">
+          <div>
+            <div className="text-indigo-300 font-medium mb-0.5">{lang === 'mr' ? '१. होरारी क्रमांक → लग्न' : '1. Horary Number \u2192 Lagna'}</div>
+            <div className="text-white/60">{lang === 'mr'
+              ? '249 उप-विभागांमधून क्रमांक शोधतो → राशी स्वामी, नक्षत्र स्वामी, उप-स्वामी मिळतात'
+              : 'Lookup the number in 249 sub-table \u2192 get Sign Lord, Star Lord, Sub Lord'}</div>
+          </div>
+          <div>
+            <div className="text-indigo-300 font-medium mb-0.5">{lang === 'mr' ? '२. ५ रुलिंग ग्रह' : '2. Five Ruling Planets'}</div>
+            <div className="text-white/60">{lang === 'mr'
+              ? 'वार स्वामी + चंद्र नक्षत्र स्वामी + चंद्र राशी स्वामी + लग्न नक्षत्र स्वामी + लग्न राशी स्वामी. ज्यांचा उप-स्वामी वक्री → वगळले.'
+              : "Day Lord + Moon Star Lord + Moon Sign Lord + Lagna Star Lord + Lagna Sign Lord. Planet\u2019s sub-lord retrograde \u2192 rejected."}</div>
+          </div>
+          <div>
+            <div className="text-emerald-300 font-medium mb-0.5">{lang === 'mr' ? '३. होय/नाही निर्णय' : '3. YES / NO Verdict'}</div>
+            <div className="text-white/60">{lang === 'mr'
+              ? 'उप-स्वामी कोणत्या गृहांचा कारक आहे ते तपासतो. प्रश्न विषयाचे अनुकूल गृह बहुसंख्य → होय, नाहीतर → नाही. नक्षत्र स्वामी वक्री → विलंबासह होय.'
+              : 'Check which houses the Sub Lord signifies. Favorable houses for the category dominate \u2192 YES. Otherwise \u2192 NO. Star lord retro \u2192 YES with delay.'}</div>
+          </div>
+          <div>
+            <div className="text-yellow-300 font-medium mb-0.5">{lang === 'mr' ? '४. काल निर्धारण (होय असल्यास)' : '4. Timing (only if YES)'}</div>
+            <div className="text-white/60">{lang === 'mr'
+              ? 'सूर्य गोचर → महिना. चंद्र + वारनाथ → अचूक दिवस. दशा काळ → दीर्घकालीन. तिन्ही जुळतात → उच्च विश्वास.'
+              : 'Sun transit \u2192 month. Moon + Day Lord \u2192 exact day. Dasha \u2192 long-term. All 3 converge \u2192 high confidence date.'}</div>
+          </div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-white/10 text-white/30 text-[10px]">
+          {lang === 'mr' ? 'स्रोत: KP Reader VI — के.एस. कृष्णमूर्ती' : 'Source: KP Reader VI \u2014 K.S. Krishnamurti'}
+        </div>
+      </div>
+    </span>
+  );
+}
+
 export default function KPResultPanel({ result }) {
   const { lang } = useI18n();
   const [expanded, setExpanded] = useState({});
@@ -85,7 +127,7 @@ export default function KPResultPanel({ result }) {
               {v.label[lang] || v.label.en}
               {yesNo.verdict === 'YES_WITH_DELAY' && <span className="ml-1 opacity-70">{lang === 'mr' ? '(विलंबासह)' : '(with delay)'}</span>}
             </span>
-            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}</span>
+            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}<HowItWorksTooltip lang={lang} /></span>
           </div>
           {/* Big timing hero */}
           {predictedDate ? (
@@ -124,7 +166,7 @@ export default function KPResultPanel({ result }) {
             <span className={`px-3 py-1 rounded-full text-xs font-bold border ${v.border} ${v.text} bg-white/5`}>
               {v.label[lang] || v.label.en}
             </span>
-            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}</span>
+            <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}<HowItWorksTooltip lang={lang} /></span>
           </div>
           <div className="text-red-400/70 text-sm text-center">
             {lang === 'mr'
@@ -149,8 +191,9 @@ export default function KPResultPanel({ result }) {
                 {lang === 'mr' ? '(विलंबासह)' : '(with delay)'}
               </div>
             )}
-            <div className="text-white/50 text-sm">
+            <div className="text-white/50 text-sm flex items-center justify-center">
               {lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}
+              <HowItWorksTooltip lang={lang} />
             </div>
           </div>
 
