@@ -150,11 +150,13 @@ function Dashboard({ token, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [selectedCalc, setSelectedCalc] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
 
-  const fetchList = async (p = 1) => {
+  const fetchList = async (p = 1, mode = activeTab) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/calculations?page=${p}&limit=20`, {
+      const modeParam = mode !== 'all' ? `&mode=${mode}` : '';
+      const res = await fetch(`/api/admin/calculations?page=${p}&limit=20${modeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -171,6 +173,12 @@ function Dashboard({ token, onLogout }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setPage(1);
+    fetchList(1, tab);
   };
 
   useEffect(() => { fetchList(); }, []);
@@ -224,7 +232,7 @@ function Dashboard({ token, onLogout }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-gold text-lg font-bold">
           {lang === 'mr' ? 'गणना इतिहास' : 'Calculation History'}
           <span className="text-white/30 text-sm ml-2">({total})</span>
@@ -235,6 +243,31 @@ function Dashboard({ token, onLogout }) {
         >
           &#8635; {lang === 'mr' ? 'रिफ्रेश' : 'Refresh'}
         </button>
+      </div>
+
+      {/* Mode Tabs */}
+      <div className="flex gap-1 mb-5 bg-white/5 rounded-lg p-1">
+        {[
+          { key: 'all', en: 'All', mr: 'सर्व' },
+          { key: 'kp', en: 'KP Horary', mr: 'केपी होरारी' },
+          { key: 'ank', en: 'Ank Shastra', mr: 'अंक शास्त्र' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
+            className={`flex-1 py-2 text-xs font-medium rounded-md transition-all cursor-pointer ${
+              activeTab === tab.key
+                ? tab.key === 'kp'
+                  ? 'bg-purple-500/20 text-purple-300 shadow-sm'
+                  : tab.key === 'ank'
+                    ? 'bg-gold/20 text-gold shadow-sm'
+                    : 'bg-white/10 text-white shadow-sm'
+                : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+            }`}
+          >
+            {lang === 'mr' ? tab.mr : tab.en}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -333,7 +366,7 @@ function Dashboard({ token, onLogout }) {
           {pages > 1 && (
             <div className="flex items-center justify-center gap-3 mt-6">
               <button
-                onClick={() => fetchList(page - 1)}
+                onClick={() => fetchList(page - 1, activeTab)}
                 disabled={page <= 1}
                 className="px-3 py-1.5 rounded border border-white/10 text-white/50 text-sm hover:border-gold/30 hover:text-gold disabled:opacity-30 cursor-pointer transition-colors disabled:cursor-default"
               >
@@ -343,7 +376,7 @@ function Dashboard({ token, onLogout }) {
                 {page} / {pages}
               </span>
               <button
-                onClick={() => fetchList(page + 1)}
+                onClick={() => fetchList(page + 1, activeTab)}
                 disabled={page >= pages}
                 className="px-3 py-1.5 rounded border border-white/10 text-white/50 text-sm hover:border-gold/30 hover:text-gold disabled:opacity-30 cursor-pointer transition-colors disabled:cursor-default"
               >

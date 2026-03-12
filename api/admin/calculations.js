@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
 
   try {
     await initDb();
-    const { id, page = '1', limit = '20' } = req.query;
+    const { id, page = '1', limit = '20', mode } = req.query;
 
     // Delete a calculation
     if (req.method === 'DELETE') {
@@ -40,11 +40,12 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: true, calculation: calc });
     }
 
-    // Paginated list
+    // Paginated list with optional mode filter
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const modeFilter = (mode === 'kp' || mode === 'ank') ? mode : null;
 
-    const result = await getCalculations(pageNum, limitNum);
+    const result = await getCalculations(pageNum, limitNum, modeFilter);
 
     res.status(200).json({
       success: true,
