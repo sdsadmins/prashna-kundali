@@ -9,6 +9,7 @@ import RulingPlanetsTable from './components/RulingPlanetsTable';
 import CalculationBreakdown from './components/CalculationBreakdown';
 import AnswerDisplay from './components/AnswerDisplay';
 import KPResultPanel from './components/KPResultPanel';
+import KPReferencePanel from './components/KPReferencePanel';
 import LagnaInfo from './components/LagnaInfo';
 import LiveLagnaBar from './components/LiveLagnaBar';
 import VerificationPanel from './components/VerificationPanel';
@@ -39,7 +40,7 @@ function AppContent() {
       });
   }, []);
 
-  const handleCalculate = async ({ question, options, optionsCount, mode, horaryNumber, questionCategory }) => {
+  const handleCalculate = async ({ question, options, optionsCount, mode, horaryNumber, questionCategory, kpQuestionType }) => {
     if (!location) return;
     setIsLoading(true);
     setResult(null);
@@ -57,6 +58,7 @@ function AppContent() {
           mode,
           horaryNumber,
           questionCategory,
+          kpQuestionType,
         }),
       });
       const data = await res.json();
@@ -111,7 +113,9 @@ function AppContent() {
               to="/admin"
               className="text-white/30 hover:text-gold/70 text-xs transition-colors"
             >
-              {lang === 'mr' ? 'लॉगिन' : 'Login'}
+              {localStorage.getItem('admin_token')
+                ? (lang === 'mr' ? 'व्यवस्थापक' : 'Admin')
+                : (lang === 'mr' ? 'लॉगिन' : 'Login')}
             </Link>
           </div>
         </header>
@@ -128,8 +132,15 @@ function AppContent() {
 
             <QuestionForm onCalculate={handleCalculate} isLoading={isLoading} initialMode={formMode} onModeChange={setFormMode} />
 
+            {/* KP Reference Tables (only in KP mode) */}
+            {formMode === 'kp' && !isLoading && (
+              <div className="mt-4">
+                <KPReferencePanel />
+              </div>
+            )}
+
             {/* Empty state hint */}
-            {!isLoading && (
+            {!isLoading && formMode !== 'kp' && (
               <div className="mt-8 text-center">
                 <div className="text-6xl mb-4 opacity-10">&#9788;</div>
                 <p className="text-white/15 text-sm">
@@ -162,6 +173,8 @@ function AppContent() {
               {result.mode === 'kp' ? (
                 <>
                   <KPResultPanel result={result} />
+
+                  <KPReferencePanel />
 
                   <button
                     onClick={() => setResult(null)}
