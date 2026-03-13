@@ -558,6 +558,7 @@ function calcPlacidusCuspsFromAsc(tropicalAsc, jd, latitude) {
 
 module.exports = {
   dateToJulianDay,
+  calcTropicalAscendant,
   calcPlanetPosition,
   calcHouses,
   calcPlacidusCuspsFromAsc,

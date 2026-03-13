@@ -328,6 +328,36 @@ function analyzeYesNo(questionCategory, houses, planets, significators) {
     constellationLord, reasoning, houseMapping);
 }
 
+/**
+ * Qualitative interpretation based on sub-lord identity.
+ * From KP Reader VI pp.220-221, 254: the sub-lord's nature reveals HOW the event manifests.
+ */
+const SUB_LORD_QUALITIES = {
+  sun:     { en: 'Through government, authority, or father\'s help. Quick and dignified resolution.',
+             mr: 'सरकार, अधिकारी किंवा वडिलांच्या मदतीने. जलद आणि प्रतिष्ठित निराकरण.' },
+  moon:    { en: 'Quick and friendly outcome. The other party will readily agree.',
+             mr: 'जलद आणि मैत्रीपूर्ण निकाल. समोरची व्यक्ती सहज सहमत होईल.' },
+  mars:    { en: 'Some tension or conflict in the process. Atmosphere may be charged.',
+             mr: 'प्रक्रियेत काही तणाव किंवा संघर्ष. वातावरण तापलेले असू शकते.' },
+  mercury: { en: 'Through correspondence, agents, or in instalments. Communication is key.',
+             mr: 'पत्रव्यवहार, एजंट किंवा हप्त्यांद्वारे. संवाद महत्त्वाचा.' },
+  jupiter: { en: 'Through lawful and legitimate means. Full and honorable outcome.',
+             mr: 'कायदेशीर आणि योग्य मार्गाने. पूर्ण आणि सन्मानजनक निकाल.' },
+  venus:   { en: 'Through compromise and sweet words. Friendly and pleasant resolution.',
+             mr: 'तडजोड आणि गोड शब्दांनी. मैत्रीपूर्ण आणि आनंददायी निराकरण.' },
+  saturn:  { en: 'Delay and some obstacles expected. May get a little less than desired.',
+             mr: 'विलंब आणि काही अडथळे अपेक्षित. अपेक्षेपेक्षा थोडे कमी मिळू शकते.' },
+  rahu:    { en: 'Unexpected or unconventional means. Foreign connections may be involved.',
+             mr: 'अनपेक्षित किंवा अपारंपरिक मार्गाने. परदेशी संपर्क असू शकतात.' },
+  ketu:    { en: 'Sudden or spiritual dimension to the outcome. May involve hidden factors.',
+             mr: 'निकालात अचानक किंवा आध्यात्मिक आयाम. छुपे घटक असू शकतात.' },
+};
+
+function getSubLordQuality(subLord) {
+  return SUB_LORD_QUALITIES[subLord] || null;
+}
+
 module.exports = {
   analyzeYesNo,
+  getSubLordQuality,
 };
