@@ -1826,10 +1826,19 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     }
 
     const confidenceMap = { 0: 'high', 1: 'high', 2: 'high', 3: 'high', 4: 'high', 5: 'medium', 6: 'medium', 7: 'low', 8: 'low', 9: 'low' };
+
+    // Confidence percentage based on tier (method quality) + score (alignment strength)
+    // Tier contributes 40-80% base, score adds 0-20% bonus
+    const tierBase = { 1: 75, 1.5: 70, 2: 65, 2.5: 60, 3: 60, 4: 55, 5: 45, 6: 40, 7: 30, 8: 25, 9: 20 };
+    const base = tierBase[best.tier] || 30;
+    const scoreBonus = Math.min(20, Math.max(0, (best.score || 0) / 5)); // 0-20% from score
+    const confidencePct = Math.min(95, Math.round(base + scoreBonus));
+
     bestPredictedDate = {
       date: best.date,
       dayName: best.dayName || undefined,
       confidence: confidenceMap[best.tier] || 'low',
+      confidencePct,
       method: best.method,
       description: best.description,
       retrogradeNote: retrogradeNote || undefined,

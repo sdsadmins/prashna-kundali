@@ -169,10 +169,14 @@ export default function KPResultPanel({ result }) {
                 {prediction?.dayName && <span className="text-xl text-white/60 ml-2">({prediction.dayName})</span>}
               </div>
               <div className="text-white/40 text-xs mt-2">{confidenceLabel(prediction)}</div>
-              {prediction?.confidence === 'high' && (
+              {prediction?.confidencePct && (
                 <div className="mt-2">
-                  <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-                    {lang === 'mr' ? 'उच्च विश्वास' : 'High confidence'}
+                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
+                    prediction.confidencePct >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
+                    prediction.confidencePct >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>
+                    {prediction.confidencePct}% {lang === 'mr' ? 'विश्वास' : 'confidence'}
                   </span>
                 </div>
               )}
@@ -244,10 +248,14 @@ export default function KPResultPanel({ result }) {
                 {prediction?.dayName && <span className="text-lg text-white/60 ml-2">({prediction.dayName})</span>}
               </div>
               <div className="text-white/40 text-xs mt-1">{confidenceLabel(prediction)}</div>
-              {prediction?.confidence === 'high' && (
+              {prediction?.confidencePct && (
                 <div className="mt-1">
-                  <span className="inline-block px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-                    {lang === 'mr' ? 'उच्च विश्वास' : 'High confidence'}
+                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
+                    prediction.confidencePct >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
+                    prediction.confidencePct >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>
+                    {prediction.confidencePct}% {lang === 'mr' ? 'विश्वास' : 'confidence'}
                   </span>
                 </div>
               )}
