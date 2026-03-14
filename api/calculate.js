@@ -46,12 +46,15 @@ module.exports = async (req, res) => {
         kpQuestionType: kpQuestionType || 'yesno',
         ...kpResult,
       };
-      res.status(200).json(responseData);
-      const { success: s, ...dataToStore } = responseData;
-      initDb()
-        .then(() => saveCalculation(dataToStore))
-        .catch((dbError) => console.error('DB save error (non-fatal):', dbError.message));
-      return;
+      // Save to DB before responding (Vercel kills background work after res.end())
+      try {
+        await initDb();
+        const { success: s, ...dataToStore } = responseData;
+        await saveCalculation(dataToStore);
+      } catch (dbError) {
+        console.error('DB save error (non-fatal):', dbError.message);
+      }
+      return res.status(200).json(responseData);
     }
 
     // ── Ank Shastra mode (default) ──────────────────────────
