@@ -117,6 +117,24 @@ export default function KPResultPanel({ result }) {
     return lang === 'mr' ? 'गुरू गोचर आधारित' : 'Based on Jupiter transit';
   }
 
+  // Readable cast method label from raw method string
+  function castMethodLabel(pred) {
+    if (!pred?.method) return null;
+    const m = pred.method;
+    const parts = [];
+    if (m.includes('transit-dasha')) parts.push(lang === 'mr' ? 'गोचर+दशा' : 'Transit+Dasha');
+    else if (m.includes('moon-day')) parts.push(lang === 'mr' ? 'चंद्र+वार' : 'Moon+Day');
+    else if (m.includes('dasha')) parts.push(lang === 'mr' ? 'दशा' : 'Dasha');
+    else if (m.includes('sun-transit')) parts.push(lang === 'mr' ? 'सूर्य गोचर' : 'Sun Transit');
+    else if (m.includes('jupiter')) parts.push(lang === 'mr' ? 'गुरू गोचर' : 'Jupiter Transit');
+    else parts.push(m);
+    if (m.includes('moon') && !m.includes('moon-day')) parts.push(lang === 'mr' ? 'चंद्र' : 'Moon');
+    if (m.includes('shookshma')) parts.push(lang === 'mr' ? 'शूक्ष्म' : 'Shookshma');
+    if (m.includes('retro-delay')) parts.push(lang === 'mr' ? 'वक्री विलंब' : 'Retro Delay');
+    if (m.includes('day-lord')) parts.push(lang === 'mr' ? 'वारनाथ' : 'Day Lord');
+    return parts.join(' → ');
+  }
+
   // Parse timing description to extract structured parts
   function parseTimingDesc(pred) {
     if (!pred?.description) return null;
@@ -170,7 +188,7 @@ export default function KPResultPanel({ result }) {
               </div>
               <div className="text-white/40 text-xs mt-2">{confidenceLabel(prediction)}</div>
               {prediction?.confidencePct && (
-                <div className="mt-2">
+                <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
                   <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
                     prediction.confidencePct >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
                     prediction.confidencePct >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
@@ -178,6 +196,11 @@ export default function KPResultPanel({ result }) {
                   }`}>
                     {prediction.confidencePct}% {lang === 'mr' ? 'विश्वास' : 'confidence'}
                   </span>
+                  {castMethodLabel(prediction) && (
+                    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-500/15 text-blue-400">
+                      {castMethodLabel(prediction)}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -249,7 +272,7 @@ export default function KPResultPanel({ result }) {
               </div>
               <div className="text-white/40 text-xs mt-1">{confidenceLabel(prediction)}</div>
               {prediction?.confidencePct && (
-                <div className="mt-1">
+                <div className="mt-1 flex items-center justify-center gap-2 flex-wrap">
                   <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
                     prediction.confidencePct >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
                     prediction.confidencePct >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
@@ -257,6 +280,11 @@ export default function KPResultPanel({ result }) {
                   }`}>
                     {prediction.confidencePct}% {lang === 'mr' ? 'विश्वास' : 'confidence'}
                   </span>
+                  {castMethodLabel(prediction) && (
+                    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-500/15 text-blue-400">
+                      {castMethodLabel(prediction)}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
