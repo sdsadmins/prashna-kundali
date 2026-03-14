@@ -209,6 +209,52 @@ function findCommonPlanets(significators, questionCategory, rulingPlanets, plane
 }
 
 /**
+ * Build significator-based target scores for each KP sub entry.
+ * Scores how well a sub entry's lords (sign, star, sub) signify favorable houses.
+ * Since significators depend on Placidus cusps (which vary per horary number),
+ * these scores differentiate predictions across horary numbers.
+ *
+ * @returns {Map<number, number>} sub entry number → significator score
+ */
+function buildSignificatorTargetScores(significators, questionCategory, targetPositions) {
+  const qHouses = getQuestionHouses(questionCategory);
+  const favorable = new Set(qHouses.favorable);
+  const unfavorable = new Set(qHouses.unfavorable);
+  const scores = new Map();
+
+  // Build a cache: planet → count of favorable houses it signifies (weighted by level)
+  const planetFavScore = {};
+  const allPlanets = ['sun', 'moon', 'mars', 'mercury', 'jupiter', 'venus', 'saturn', 'rahu', 'ketu'];
+  for (const planet of allPlanets) {
+    let score = 0;
+    const houses = getHousesSignifiedByPlanet(planet, significators);
+    for (const { house, level } of houses) {
+      if (favorable.has(house)) {
+        // Level A (strongest) → 4, B → 3, C → 2, D → 1
+        score += level === 'A' ? 4 : level === 'B' ? 3 : level === 'C' ? 2 : 1;
+      }
+      if (unfavorable.has(house)) {
+        score -= level === 'A' ? 3 : level === 'B' ? 2 : level === 'C' ? 1 : 0.5;
+      }
+    }
+    planetFavScore[planet] = score;
+  }
+
+  for (const entry of targetPositions) {
+    const signScore = planetFavScore[entry.signLord] || 0;
+    const starScore = planetFavScore[entry.starLord] || 0;
+    const subScore = planetFavScore[entry.subLord] || 0;
+    // Star lord and sub lord carry more weight (per KP methodology)
+    const total = signScore * 0.5 + starScore * 1.0 + subScore * 1.5;
+    if (total !== 0) {
+      scores.set(entry.number, Math.round(total * 3)); // Scale to meaningful bonus range
+    }
+  }
+
+  return scores;
+}
+
+/**
  * Convert Julian Day to JS Date
  */
 function julianDayToDate(jd) {
@@ -702,7 +748,7 @@ function findFruitfulDashaPeriods(dashaBalance, significators, questionCategory,
 /**
  * Find dates where Sun transit AND favorable dasha period overlap.
  */
-function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResults, rulingPlanets, fruitfulDashaPeriods, fruitfulSignificators) {
+function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResults, rulingPlanets, fruitfulDashaPeriods, fruitfulSignificators, sigTargetScores) {
   if (!sunTransits || sunTransits.length === 0 || !allDashaPeriods || allDashaPeriods.length === 0) return [];
 
   const rpSet = new Set(rulingPlanets || []);
@@ -734,6 +780,11 @@ function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResul
           if (fruitfulPlanetSet.has(subLord)) transitQuality++;
           // Progressive: 1=+5, 2=+12, 3=+25 (exponential for ideal transits)
           score += transitQuality === 3 ? 25 : transitQuality === 2 ? 12 : transitQuality * 5;
+        }
+
+        // Significator-based target score: varies per horary number (different cusps → different significators)
+        if (sigTargetScores && st.targetRange && sigTargetScores.has(st.targetRange.number)) {
+          score += sigTargetScores.get(st.targetRange.number);
         }
 
         // Check if there is a Moon+Day match near this Sun transit within the period
@@ -794,6 +845,7 @@ function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResul
             matchType: moonMatch.matchType,
           } : null,
           sunTransitTarget: st.targetRange || null,
+          rpOnly: period.method === 'dasha-rp',
           score,
           method: moonMatch ? 'transit-dasha-moon' : 'transit-dasha',
           description: moonMatch
@@ -1007,9 +1059,12 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     }
   }
 
+  // Step 6c: Build significator-based target scores (varies per horary number)
+  const sigTargetScores = buildSignificatorTargetScores(significators, questionCategory, effectiveTargets);
+
   // Step 7: Transit-Dasha intersection
   const transitDashaIntersections = findTransitDashaIntersection(
-    sunTransits, allDashaPeriods, allMoonTransitResults, rulingPlanets, fruitfulDashaPeriods, commonPlanets
+    sunTransits, allDashaPeriods, allMoonTransitResults, rulingPlanets, fruitfulDashaPeriods, commonPlanets, sigTargetScores
   );
 
   // Step 7b: Star-only transit search within top dasha periods (by score)
@@ -1141,14 +1196,14 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
   // Tier 1: Transit-Dasha intersection with Moon match (highest)
   for (const tdi of transitDashaIntersections) {
     if (tdi.moonMatch && new Date(tdi.date) >= minLeadDate) {
-      candidates.push({ tier: 1, date: tdi.date, score: tdi.score, method: 'transit-dasha-moon', description: tdi.description, dayName: tdi.moonMatch.dayName });
+      candidates.push({ tier: 1, date: tdi.date, score: tdi.score, method: 'transit-dasha-moon', description: tdi.description, dayName: tdi.moonMatch.dayName, rpOnly: tdi.rpOnly });
     }
   }
 
   // Tier 2: Transit-Dasha without Moon
   for (const tdi of transitDashaIntersections) {
     if (!tdi.moonMatch && new Date(tdi.date) >= minLeadDate) {
-      candidates.push({ tier: 2, date: tdi.date, score: tdi.score, method: 'transit-dasha', description: tdi.description });
+      candidates.push({ tier: 2, date: tdi.date, score: tdi.score, method: 'transit-dasha', description: tdi.description, rpOnly: tdi.rpOnly });
     }
   }
 
@@ -1167,48 +1222,54 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     }
   }
 
-  // Tier 3: Dasha-aligned strict Moon+Day
-  for (const mr of allStrictWithContext) {
-    if (new Date(mr.date) < minLeadDate) continue;
-    // Check if this Moon date falls within any dasha period
-    const mrMs = new Date(mr.date).getTime();
-    let dashaAligned = false;
-    for (const dp of allDashaPeriods) {
+  // Helper: get significator score for a moon transit target range
+  function getMoonSigScore(mr) {
+    if (!mr.targetRange || !mr.targetRange.number) return 0;
+    return sigTargetScores.get(mr.targetRange.number) || 0;
+  }
+
+  // Significator-based dasha periods only (vary per horary number; excludes RP-only)
+  const sigDashaPeriods = allDashaPeriods.filter(dp => dp.method !== 'dasha-rp');
+
+  // Check if date is within a significator-based dasha period
+  function isSigDashaAligned(dateMs) {
+    for (const dp of sigDashaPeriods) {
       const dpStart = new Date(dp.date).getTime();
       const dpEnd = new Date(dp.endDate).getTime();
-      if (mrMs >= dpStart && mrMs <= dpEnd) { dashaAligned = true; break; }
+      if (dateMs >= dpStart && dateMs <= dpEnd) return true;
     }
-    if (dashaAligned) {
-      candidates.push({ tier: 3, date: mr.date, score: 30, method: 'moon-day-dasha-strict', description: 'Strict Moon+Day in favorable dasha period', dayName: mr.dayName });
+    return false;
+  }
+
+  // Tier 3: Significator-dasha-aligned strict Moon+Day (varies per horary number)
+  for (const mr of allStrictWithContext) {
+    if (new Date(mr.date) < minLeadDate) continue;
+    const mrMs = new Date(mr.date).getTime();
+    if (isSigDashaAligned(mrMs)) {
+      candidates.push({ tier: 3, date: mr.date, score: 30 + getMoonSigScore(mr), method: 'moon-day-dasha-strict', description: 'Strict Moon+Day in favorable dasha period', dayName: mr.dayName });
     }
   }
 
   // Tier 4: Any strict Moon+Day
   for (const mr of allStrictWithContext) {
     if (new Date(mr.date) >= minLeadDate) {
-      candidates.push({ tier: 4, date: mr.date, score: 25 - mr.daysFromSun, method: 'moon-day-match', description: 'Sun + Moon + Day Lord alignment', dayName: mr.dayName });
+      candidates.push({ tier: 4, date: mr.date, score: 25 - mr.daysFromSun + getMoonSigScore(mr), method: 'moon-day-match', description: 'Sun + Moon + Day Lord alignment', dayName: mr.dayName });
     }
   }
 
-  // Tier 5: Dasha-aligned relaxed Moon+Day
+  // Tier 5: Significator-dasha-aligned relaxed Moon+Day
   for (const mr of allRelaxedWithContext) {
     if (new Date(mr.date) < minLeadDate) continue;
     const mrMs = new Date(mr.date).getTime();
-    let dashaAligned = false;
-    for (const dp of allDashaPeriods) {
-      const dpStart = new Date(dp.date).getTime();
-      const dpEnd = new Date(dp.endDate).getTime();
-      if (mrMs >= dpStart && mrMs <= dpEnd) { dashaAligned = true; break; }
-    }
-    if (dashaAligned) {
-      candidates.push({ tier: 5, date: mr.date, score: 20, method: 'moon-day-dasha-relaxed', description: 'Relaxed Moon+Day in favorable dasha period', dayName: mr.dayName });
+    if (isSigDashaAligned(mrMs)) {
+      candidates.push({ tier: 5, date: mr.date, score: 20 + getMoonSigScore(mr), method: 'moon-day-dasha-relaxed', description: 'Relaxed Moon+Day in favorable dasha period', dayName: mr.dayName });
     }
   }
 
   // Tier 6: Any relaxed Moon+Day
   for (const mr of allRelaxedWithContext) {
     if (new Date(mr.date) >= minLeadDate) {
-      candidates.push({ tier: 6, date: mr.date, score: 15 - mr.daysFromSun, method: 'moon-day-relaxed', description: 'Sun + Moon transit alignment', dayName: mr.dayName });
+      candidates.push({ tier: 6, date: mr.date, score: 15 - mr.daysFromSun + getMoonSigScore(mr), method: 'moon-day-relaxed', description: 'Sun + Moon transit alignment', dayName: mr.dayName });
     }
   }
 
@@ -1265,9 +1326,10 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       deferToNextMaha = bestNextMahaScore >= 40 && bestNextMahaScore >= bestCurrentMahaScore * 2;
     }
 
-    function getBand(dateStr, tier) {
-      const dateMs = new Date(dateStr).getTime();
+    function getBand(candidate) {
+      const dateMs = new Date(candidate.date).getTime();
       const daysOut = (dateMs - judgMs) / 86400000;
+      const tier = candidate.tier;
 
       // When next maha has overwhelmingly better transit-dasha intersections,
       // demote non-dasha-confirmed near-term dates (tier 3+) in current maha
@@ -1278,6 +1340,11 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       // Dasha-only and slow-planet fallbacks (Tier 8-9) cannot claim Band A
       // This prevents low-quality near-term predictions from beating quality transit-dasha matches
       if (tier >= 8 && daysOut <= 90) return 1;  // Demote to Band B
+
+      // RP-only TDIs in Band A: demote to Band B so sig-based candidates can win
+      // RP-only TDIs are identical for all horary numbers; demotion creates differentiation
+      if (candidate.rpOnly && daysOut <= 90) return 1;  // Demote to Band B
+
       if (daysOut <= 90) return 0;   // Band A
       if (daysOut <= 365) return 1;  // Band B
       return 2;                       // Band C
@@ -1286,7 +1353,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     // Effective score: apply proximity decay within Band B to favor earlier dates
     // This prevents far-future high-scoring candidates from always beating nearer valid ones
     function effectiveScore(candidate) {
-      const band = getBand(candidate.date, candidate.tier);
+      const band = getBand(candidate);
       let score = candidate.score;
       if (band === 1) { // Band B: decay 1 point per 10 days beyond 90
         const daysOut = (new Date(candidate.date).getTime() - judgMs) / 86400000;
@@ -1296,8 +1363,8 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     }
 
     candidates.sort((a, b) => {
-      const bandA = getBand(a.date, a.tier);
-      const bandB = getBand(b.date, b.tier);
+      const bandA = getBand(a);
+      const bandB = getBand(b);
       // Proximity band first: nearer bands always win
       if (bandA !== bandB) return bandA - bandB;
       // Within same band: tier (method quality)
@@ -1316,7 +1383,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     // anthra lord's sub the Sun transits during that anthra period.
     // When best is Band C tier 1-2 (TDI), check if another Band C TDI has
     // transit-anthra resonance (sub=anthra, anthra is RP) — prefer it.
-    const bestBand = getBand(best.date, best.tier);
+    const bestBand = getBand(best);
     // Transit-anthra resonance override for long-range predictions (Band C).
     // Per KP Reader VI: for events years in the future, the correct anthra is
     // identified by Sun transit sub lord matching the anthra lord (a ruling planet).
@@ -1471,6 +1538,57 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       }
     }
 
+    // Day lord hard filter: book confirms event date's day-of-week matches a ruling planet
+    // Only apply to transit-based tiers (1-6) to avoid disrupting dasha-only predictions
+    if (best.tier <= 6) {
+      const rpDays = new Set();
+      for (const rp of rulingPlanets) {
+        if (PLANET_TO_DAY[rp] !== undefined) rpDays.add(PLANET_TO_DAY[rp]);
+      }
+      const bestDateObj = new Date(best.date);
+      const bestDayOfWeek = bestDateObj.getUTCDay();
+      if (rpDays.size > 0 && !rpDays.has(bestDayOfWeek)) {
+        // Search ±3 days for the nearest date with matching day lord
+        let bestShift = null;
+        for (let shift = -3; shift <= 3; shift++) {
+          if (shift === 0) continue;
+          const shiftedDate = new Date(bestDateObj.getTime() + shift * 86400000);
+          if (shiftedDate < minLeadDate) continue;
+          const shiftedDay = shiftedDate.getUTCDay();
+          if (rpDays.has(shiftedDay)) {
+            if (!bestShift || Math.abs(shift) < Math.abs(bestShift)) {
+              bestShift = shift;
+            }
+          }
+        }
+        if (bestShift !== null) {
+          const shiftedDate = new Date(bestDateObj.getTime() + bestShift * 86400000);
+          const shiftedDow = shiftedDate.getUTCDay();
+          best = {
+            ...best,
+            date: shiftedDate.toISOString().split('T')[0],
+            dayName: DAY_LORDS[shiftedDow].en,
+            description: best.description + ` [day-lord adjusted ${bestShift > 0 ? '+' : ''}${bestShift}d]`,
+          };
+        }
+      }
+    }
+
+    // Retrograde annotation: flag when bhukti/anthra lord is retrograde at judgment time
+    let retrogradeNote = null;
+    const bestTdiForRetro = transitDashaIntersections.find(t => t.date === best.date);
+    if (bestTdiForRetro && bestTdiForRetro.period) {
+      const retroLords = [];
+      for (const lord of [bestTdiForRetro.period.bhukti, bestTdiForRetro.period.anthra]) {
+        if (lord && planets[lord] && planets[lord].retrograde) {
+          retroLords.push(lord);
+        }
+      }
+      if (retroLords.length > 0) {
+        retrogradeNote = `${retroLords.join(', ')} retrograde at judgment — event may be delayed until direct station`;
+      }
+    }
+
     const confidenceMap = { 0: 'high', 1: 'high', 2: 'high', 3: 'high', 4: 'high', 5: 'medium', 6: 'medium', 7: 'low', 8: 'low', 9: 'low' };
     bestPredictedDate = {
       date: best.date,
@@ -1478,6 +1596,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       confidence: confidenceMap[best.tier] || 'low',
       method: best.method,
       description: best.description,
+      retrogradeNote: retrogradeNote || undefined,
     };
   }
 
