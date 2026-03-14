@@ -54,6 +54,7 @@ const QUESTION_CATEGORY_GROUPS = [
   ]},
   { group: { en: 'Other', mr: 'इतर' }, items: [
     { key: 'lost_item', en: 'Lost Item', mr: 'हरवलेली वस्तू', hint: { en: 'Will I find it?', mr: 'सापडेल का?' } },
+    { key: 'war', en: 'War / Conflict', mr: 'युद्ध / संघर्ष', hint: { en: 'Will war/conflict end?', mr: 'युद्ध संपेल?' } },
     { key: 'general', en: 'General', mr: 'सामान्य', hint: { en: 'Any yes/no question', mr: 'कोणताही प्रश्न' } },
   ]},
 ];
@@ -252,6 +253,12 @@ const CATEGORY_KEYWORDS = {
     'travel', 'trip', 'journey', 'tour', 'visit', 'go to', 'moving',
     'प्रवास', 'सफर', 'यात्रा',
   ],
+  war: [
+    'war', 'conflict', 'battle', 'attack', 'invasion', 'ceasefire', 'peace',
+    'military', 'army', 'troops', 'bombing', 'missile', 'nuclear',
+    'iran', 'israel', 'russia', 'ukraine', 'pakistan', 'china',
+    'युद्ध', 'संघर्ष', 'लढाई', 'हमला', 'शांती', 'जंग', 'हल्ला',
+  ],
 };
 
 // Priority order for auto-detection: specific before general
@@ -265,7 +272,7 @@ const DETECT_PRIORITY = [
   'education', 'scholarship',
   'health', 'children', 'property', 'vehicle',
   'legal', 'imprisonment', 'election',
-  'business', 'partnership', 'love', 'travel',
+  'business', 'partnership', 'love', 'travel', 'war',
 ];
 
 function detectCategory(text) {

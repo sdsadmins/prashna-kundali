@@ -85,6 +85,8 @@ const KP_QUESTION_HOUSES = {
   reconciliation:  { favorable: [2, 5, 7, 11],  unfavorable: [1, 6, 10, 12], primaryCusp: 7 },
   // Travel safety: 9th cusp (journey), houses 3,9,11 for safe travel
   travel_safety:   { favorable: [3, 9, 11],     unfavorable: [8, 12],        primaryCusp: 9 },
+  // War/conflict resolution: 7th=open enemies, 11th=desire fulfilment, 9th=peace/dharma
+  war:             { favorable: [7, 9, 11],      unfavorable: [6, 8, 12],     primaryCusp: 7 },
   general:         { favorable: [1, 9, 11],     unfavorable: [6, 8, 12],     primaryCusp: 11 },
 };
 
