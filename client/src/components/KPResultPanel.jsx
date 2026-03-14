@@ -64,8 +64,8 @@ function HowItWorksTooltip({ lang }) {
           <div>
             <div className="text-indigo-300 font-medium mb-0.5">{lang === 'mr' ? '२. ५ रुलिंग ग्रह' : '2. Five Ruling Planets'}</div>
             <div className="text-white/60">{lang === 'mr'
-              ? 'वार स्वामी + चंद्र नक्षत्र स्वामी + चंद्र राशी स्वामी + लग्न नक्षत्र स्वामी + लग्न राशी स्वामी. ज्यांचा उप-स्वामी वक्री → वगळले.'
-              : "Day Lord + Moon Star Lord + Moon Sign Lord + Lagna Star Lord + Lagna Sign Lord. Planet\u2019s sub-lord retrograde \u2192 rejected."}</div>
+              ? 'वार स्वामी + चंद्र नक्षत्र स्वामी + चंद्र राशी स्वामी + लग्न नक्षत्र स्वामी + लग्न राशी स्वामी. वक्री ग्रहाच्या नक्षत्र/उप मध्ये असलेले → वगळले.'
+              : "Day Lord + Moon Star Lord + Moon Sign Lord + Lagna Star Lord + Lagna Sign Lord. Planet in constellation or sub of retrograde \u2192 rejected."}</div>
           </div>
           <div>
             <div className="text-emerald-300 font-medium mb-0.5">{lang === 'mr' ? '३. होय/नाही निर्णय' : '3. YES / NO Verdict'}</div>
@@ -76,8 +76,8 @@ function HowItWorksTooltip({ lang }) {
           <div>
             <div className="text-yellow-300 font-medium mb-0.5">{lang === 'mr' ? '४. काल निर्धारण (होय असल्यास)' : '4. Timing (only if YES)'}</div>
             <div className="text-white/60">{lang === 'mr'
-              ? 'सूर्य गोचर → महिना. चंद्र + वारनाथ → अचूक दिवस. दशा काळ → दीर्घकालीन. तिन्ही जुळतात → उच्च विश्वास.'
-              : 'Sun transit \u2192 month. Moon + Day Lord \u2192 exact day. Dasha \u2192 long-term. All 3 converge \u2192 high confidence date.'}</div>
+              ? 'दशा काळ → वर्ष/महिने. सूर्य गोचर → महिना. चंद्र + वारनाथ → दिवस. शूक्ष्म दशा → अचूक तारीख. सर्व स्तर जुळतात → उच्च विश्वास.'
+              : 'Dasha period \u2192 year. Sun transit \u2192 month. Moon + Day Lord \u2192 day. Shookshma dasha \u2192 exact date. All layers converge \u2192 high confidence.'}</div>
           </div>
         </div>
         <div className="mt-2 pt-2 border-t border-white/10 text-white/30 text-[10px]">
@@ -106,11 +106,40 @@ export default function KPResultPanel({ result }) {
   // Confidence label helper
   function confidenceLabel(pred) {
     if (!pred) return '';
+    const m = pred.method || '';
+    if (m.includes('shookshma')) return lang === 'mr' ? 'दशा + गोचर + शूक्ष्म संरेखन' : 'Dasha + Transit + Shookshma alignment';
+    if (m === 'transit-dasha-moon') return lang === 'mr' ? 'दशा + सूर्य + चंद्र + वारनाथ संरेखन' : 'Dasha + Sun + Moon + Day Lord alignment';
+    if (m === 'transit-dasha') return lang === 'mr' ? 'दशा + सूर्य गोचर संरेखन' : 'Dasha + Sun transit alignment';
+    if (m === 'moon-day-match') return lang === 'mr' ? 'चंद्र + वारनाथ संरेखन' : 'Moon + Day Lord alignment';
     if (pred.confidence === 'high') return lang === 'mr' ? 'सूर्य + चंद्र + वारनाथ संरेखन' : 'Sun + Moon + Day Lord alignment';
     if (pred.confidence === 'medium') return lang === 'mr' ? 'सूर्य + चंद्र गोचर' : 'Sun + Moon transit alignment';
-    if (pred.method === 'sun-transit') return lang === 'mr' ? 'सूर्य गोचर (अंदाजे महिना)' : 'Sun transit (approximate month)';
     if (pred.method === 'dasha-period') return lang === 'mr' ? 'दशा काळ आधारित' : 'Based on Dasha period';
     return lang === 'mr' ? 'गुरू गोचर आधारित' : 'Based on Jupiter transit';
+  }
+
+  // Parse timing description to extract structured parts
+  function parseTimingDesc(pred) {
+    if (!pred?.description) return null;
+    const desc = pred.description;
+    const parts = {};
+    // Extract dasha period: "in venus-jupiter-moon Dasha period" or "in venus-jupiter-moon (2/3 RP)"
+    const dashaMatch = desc.match(/in\s+(\w+-\w+-\w+)\s/);
+    if (dashaMatch) {
+      const [maha, bhukti, anthra] = dashaMatch[1].split('-');
+      parts.maha = maha;
+      parts.bhukti = bhukti;
+      parts.anthra = anthra;
+    }
+    // Extract shookshma lord: "→ jupiter shookshma"
+    const shkMatch = desc.match(/→\s+(\w+)\s+shookshma/);
+    if (shkMatch) parts.shookshma = shkMatch[1];
+    // Extract Sun transit date
+    const sunMatch = desc.match(/Sun transit\s+(\d{4}-\d{2}-\d{2})/);
+    if (sunMatch) parts.sunDate = sunMatch[1];
+    // Extract Moon date and day
+    const moonMatch = desc.match(/Moon\s+(\d{4}-\d{2}-\d{2})\s+\((\w+)\)/);
+    if (moonMatch) { parts.moonDate = moonMatch[1]; parts.moonDay = moonMatch[2]; }
+    return parts;
   }
 
   return (
@@ -151,6 +180,13 @@ export default function KPResultPanel({ result }) {
           ) : (
             <div className="text-center text-white/40 text-sm py-2">
               {lang === 'mr' ? 'गोचर स्थिती आधारित अचूक तारीख उपलब्ध नाही' : 'Exact transit date not available — see Dasha period below'}
+            </div>
+          )}
+          {/* Sub-lord qualitative insight */}
+          {isYes && yesNo.subLordQuality && (
+            <div className="mt-3 pt-3 border-t border-white/10 text-center">
+              <div className="text-white/30 text-[10px] mb-0.5">{lang === 'mr' ? `उप-स्वामी ${pName(yesNo.subLord, lang)} सूचित करतो:` : `Sub-lord ${pName(yesNo.subLord, lang)} indicates:`}</div>
+              <div className="text-white/60 text-xs italic">{yesNo.subLordQuality[lang] || yesNo.subLordQuality.en}</div>
             </div>
           )}
         </div>
@@ -218,6 +254,14 @@ export default function KPResultPanel({ result }) {
             </div>
           )}
 
+          {/* Sub-lord qualitative insight */}
+          {isYes && yesNo.subLordQuality && (
+            <div className="mt-3 pt-3 border-t border-white/10 text-center">
+              <div className="text-white/30 text-[10px] mb-0.5">{lang === 'mr' ? `उप-स्वामी ${pName(yesNo.subLord, lang)} सूचित करतो:` : `Sub-lord ${pName(yesNo.subLord, lang)} indicates:`}</div>
+              <div className="text-white/60 text-xs italic">{yesNo.subLordQuality[lang] || yesNo.subLordQuality.en}</div>
+            </div>
+          )}
+
           {/* For NO verdict — show reason */}
           {!isYes && (
             <div className="mt-4 pt-4 border-t border-white/10 text-center">
@@ -231,98 +275,180 @@ export default function KPResultPanel({ result }) {
         </div>
       )}
 
-      {/* Detailed Transit Dates — always visible for YES */}
+      {/* Timing Breakdown — layered convergence view */}
       {isYes && timing && (
         <div className="card-glass p-4">
           <h3 className="text-gold text-sm font-medium mb-3">
-            {lang === 'mr' ? 'घटना काल निर्धारण' : 'Event Timing'}
+            {lang === 'mr' ? 'काल निर्धारण विश्लेषण' : 'Timing Analysis'}
           </h3>
-          <div className="space-y-3">
-            {timing.sunTransit && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-white/50 text-xs">{lang === 'mr' ? 'सूर्य गोचर (महिना)' : 'Sun Transit (month)'}</div>
-                  {timing.sunTransit.targetRange && (
-                    <div className="text-white/30 text-[10px]">
-                      {timing.sunTransit.targetRange.signLord}/{timing.sunTransit.targetRange.starLord}/{timing.sunTransit.targetRange.subLord}
-                    </div>
-                  )}
-                </div>
-                <div className="text-white text-sm font-medium">{formatDateShort(timing.sunTransit.date, lang)}</div>
-              </div>
-            )}
-            {timing.moonTransit && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-white/50 text-xs">
-                    {lang === 'mr' ? 'चंद्र + वारनाथ (दिवस)' : 'Moon + Day Lord (day)'}
-                  </div>
-                  {timing.moonTransit.dayName && (
-                    <div className="text-white/30 text-[10px]">
-                      {timing.moonTransit.dayName} — {timing.moonTransit.matchType || 'match'}
-                    </div>
-                  )}
-                </div>
-                <div className={`text-sm font-medium ${timing.moonTransit.confidence === 'high' ? 'text-emerald-400' : 'text-white'}`}>
-                  {formatDateShort(timing.moonTransit.date, lang)}
-                </div>
-              </div>
-            )}
-            {timing.jupiterTransit && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-white/50 text-xs">{lang === 'mr' ? 'गुरू गोचर (वर्ष)' : 'Jupiter Transit (year)'}</div>
-                </div>
-                <div className="text-white text-sm font-medium">{formatDateShort(timing.jupiterTransit.date, lang)}</div>
-              </div>
-            )}
-            {timing.saturnTransit && (
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-white/50 text-xs">{lang === 'mr' ? 'शनी गोचर' : 'Saturn Transit'}</div>
-                </div>
-                <div className="text-white text-sm font-medium">{formatDateShort(timing.saturnTransit.date, lang)}</div>
-              </div>
-            )}
-            {timing.dashaTiming?.best && (
-              <div className="mt-2 pt-2 border-t border-white/10">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="text-white/50 text-xs">{lang === 'mr' ? 'दशा काळ (दीर्घकालीन)' : 'Dasha Period (long-term)'}</div>
-                    <div className="text-white/30 text-[10px]">
-                      {timing.dashaTiming.best.description}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-purple-400 text-sm font-medium">{formatDateShort(timing.dashaTiming.best.date, lang)}</div>
-                    {timing.dashaTiming.best.endDate && (
-                      <div className="text-white/30 text-[10px]">
-                        {lang === 'mr' ? 'ते' : 'to'} {formatDateShort(timing.dashaTiming.best.endDate, lang)}
+
+          {/* Layered timing breakdown */}
+          {prediction && (() => {
+            const parts = parseTimingDesc(prediction);
+            const method = prediction.method || '';
+            const hasDasha = parts?.maha;
+            const hasSun = parts?.sunDate;
+            const hasMoon = parts?.moonDate;
+            const hasShookshma = parts?.shookshma;
+
+            // Timing layers with convergence indicator
+            const layers = [];
+            if (hasDasha) layers.push({ key: 'dasha', color: 'purple', icon: '◈' });
+            if (hasSun) layers.push({ key: 'sun', color: 'amber', icon: '☉' });
+            if (hasMoon) layers.push({ key: 'moon', color: 'blue', icon: '☽' });
+            if (hasShookshma) layers.push({ key: 'shookshma', color: 'emerald', icon: '◉' });
+            if (method === 'moon-day-match') layers.push({ key: 'moon-only', color: 'blue', icon: '☽' });
+
+            return (
+              <div className="space-y-2.5">
+                {/* Active Dasha Period */}
+                {hasDasha && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400 text-xs">◈</div>
+                    <div className="flex-1">
+                      <div className="text-white/50 text-[10px] uppercase tracking-wider">{lang === 'mr' ? 'दशा काळ' : 'Dasha Period'}</div>
+                      <div className="text-white text-sm font-medium">
+                        {pName(parts.maha, lang)}-{pName(parts.bhukti, lang)}-{pName(parts.anthra, lang)}
                       </div>
-                    )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sun Transit */}
+                {hasSun && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-xs">☉</div>
+                    <div className="flex-1 flex justify-between items-center">
+                      <div>
+                        <div className="text-white/50 text-[10px] uppercase tracking-wider">{lang === 'mr' ? 'सूर्य गोचर → महिना' : 'Sun Transit → Month'}</div>
+                        {timing.sunTransit?.targetRange && (
+                          <div className="text-white/30 text-[10px]">
+                            {pName(timing.sunTransit.targetRange.signLord, lang)}/{pName(timing.sunTransit.targetRange.starLord, lang)}/{pName(timing.sunTransit.targetRange.subLord, lang)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-amber-400/80 text-sm font-medium">{formatDateShort(parts.sunDate, lang)}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Moon + Day Lord */}
+                {(hasMoon || method === 'moon-day-match') && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 text-xs">☽</div>
+                    <div className="flex-1 flex justify-between items-center">
+                      <div>
+                        <div className="text-white/50 text-[10px] uppercase tracking-wider">{lang === 'mr' ? 'चंद्र + वारनाथ → दिवस' : 'Moon + Day Lord → Day'}</div>
+                        {(parts?.moonDay || prediction.dayName) && (
+                          <div className="text-white/30 text-[10px]">{parts?.moonDay || prediction.dayName}</div>
+                        )}
+                      </div>
+                      <div className="text-blue-400/80 text-sm font-medium">
+                        {formatDateShort(hasMoon ? parts.moonDate : prediction.date, lang)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Shookshma */}
+                {hasShookshma && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-[10px]">◉</div>
+                    <div className="flex-1">
+                      <div className="text-white/50 text-[10px] uppercase tracking-wider">{lang === 'mr' ? 'शूक्ष्म दशा → अचूक दिवस' : 'Shookshma Dasha → Exact Day'}</div>
+                      <div className="text-emerald-400/80 text-sm font-medium">
+                        {pName(parts.shookshma, lang)} {lang === 'mr' ? 'शूक्ष्म' : 'Shookshma'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Convergence summary bar */}
+                <div className="mt-1 pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-white/30 text-[10px]">{lang === 'mr' ? 'संरेखन:' : 'Alignment:'}</span>
+                    {layers.map((l, i) => {
+                      const dotColors = { purple: 'bg-purple-400', amber: 'bg-amber-400', blue: 'bg-blue-400', emerald: 'bg-emerald-400' };
+                      return <span key={i} className={`inline-block w-2 h-2 rounded-full ${dotColors[l.color] || 'bg-white/40'}`} title={l.key} />;
+                    })}
+                    <span className="text-white/30 text-[10px] ml-1">
+                      {layers.length >= 4
+                        ? (lang === 'mr' ? '४-स्तरीय (उत्कृष्ट)' : '4-layer (excellent)')
+                        : layers.length >= 3
+                          ? (lang === 'mr' ? '३-स्तरीय (उच्च)' : '3-layer (high)')
+                          : layers.length >= 2
+                            ? (lang === 'mr' ? '२-स्तरीय (चांगले)' : '2-layer (good)')
+                            : (lang === 'mr' ? '१-स्तरीय' : '1-layer')}
+                    </span>
                   </div>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* Additional transits — collapsible */}
+          <div className="mt-3 pt-2 border-t border-white/10">
+            <button onClick={() => toggle('transits')} className="w-full flex justify-between items-center cursor-pointer">
+              <span className="text-white/50 text-xs">{lang === 'mr' ? 'अतिरिक्त गोचर' : 'Additional Transits'}</span>
+              <span className="text-white/30 text-[10px]">{expanded.transits ? '▾' : '▸'}</span>
+            </button>
+            {expanded.transits && (
+              <div className="mt-2 space-y-2">
+                {timing.jupiterTransit && (
+                  <div className="flex justify-between items-center">
+                    <div className="text-white/40 text-xs">{lang === 'mr' ? 'गुरू गोचर (वर्ष)' : 'Jupiter Transit (year)'}</div>
+                    <div className="text-white/70 text-xs font-medium">{formatDateShort(timing.jupiterTransit.date, lang)}</div>
+                  </div>
+                )}
+                {timing.saturnTransit && (
+                  <div className="flex justify-between items-center">
+                    <div className="text-white/40 text-xs">{lang === 'mr' ? 'शनी गोचर' : 'Saturn Transit'}</div>
+                    <div className="text-white/70 text-xs font-medium">{formatDateShort(timing.saturnTransit.date, lang)}</div>
+                  </div>
+                )}
+                {timing.dashaTiming?.best && (
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-white/40 text-xs">{lang === 'mr' ? 'सर्वोत्तम दशा काळ' : 'Best Dasha Period'}</div>
+                      <div className="text-white/30 text-[10px]">{timing.dashaTiming.best.description}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-purple-400/70 text-xs font-medium">{formatDateShort(timing.dashaTiming.best.date, lang)}</div>
+                      {timing.dashaTiming.best.endDate && (
+                        <div className="text-white/30 text-[10px]">{lang === 'mr' ? 'ते' : 'to'} {formatDateShort(timing.dashaTiming.best.endDate, lang)}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-          {/* Prominent Dates — all predicted dates from Sun, Moon transits, and Dasha */}
+
+          {/* Prominent Dates — collapsible */}
           {timing.prominentDates && timing.prominentDates.length > 0 && (
-            <div className="mt-3 pt-2 border-t border-white/10">
-              <div className="text-white/50 text-xs mb-2">{lang === 'mr' ? 'संभाव्य तारखा' : 'Probable Dates'}</div>
-              <div className="space-y-1.5">
-                {timing.prominentDates.map((pd, i) => (
-                  <div key={i} className="flex justify-between items-start gap-2 text-xs">
-                    <div className="text-white/40 flex-1 truncate" title={pd.description}>{pd.description}</div>
-                    <div className={`font-medium whitespace-nowrap ${pd.source === 'dasha' ? 'text-purple-400' : pd.confidence === 'high' ? 'text-emerald-400' : pd.confidence === 'medium' ? 'text-yellow-400' : 'text-white/70'}`}>
-                      {formatDateShort(pd.date, lang)}
+            <div className="mt-2 pt-2 border-t border-white/10">
+              <button onClick={() => toggle('prominent')} className="w-full flex justify-between items-center cursor-pointer">
+                <span className="text-white/50 text-xs">{lang === 'mr' ? 'संभाव्य तारखा' : 'Probable Dates'} ({timing.prominentDates.length})</span>
+                <span className="text-white/30 text-[10px]">{expanded.prominent ? '▾' : '▸'}</span>
+              </button>
+              {expanded.prominent && (
+                <div className="mt-2 space-y-1.5">
+                  {timing.prominentDates.map((pd, i) => (
+                    <div key={i} className="flex justify-between items-start gap-2 text-xs">
+                      <div className="text-white/40 flex-1 truncate" title={pd.description}>{pd.description}</div>
+                      <div className={`font-medium whitespace-nowrap ${pd.source === 'dasha' ? 'text-purple-400' : pd.confidence === 'high' ? 'text-emerald-400' : pd.confidence === 'medium' ? 'text-yellow-400' : 'text-white/70'}`}>
+                        {formatDateShort(pd.date, lang)}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Fruitful Significators footer */}
           <div className="mt-3 pt-2 border-t border-white/10 text-xs text-white/40">
-            {lang === 'mr' ? 'रुलिंग ग्रह:' : 'Ruling Planets:'} {timing.fruitfulSignificators.map(p => pName(p, lang)).join(', ')}
+            {lang === 'mr' ? 'फलदायी कारक:' : 'Fruitful Significators:'} {timing.fruitfulSignificators.map(p => pName(p, lang)).join(', ')}
             {timing.targetPositionCount !== undefined && (
               <span className="ml-2">({timing.targetPositionCount} {lang === 'mr' ? 'लक्ष्य स्थाने' : 'target positions'})</span>
             )}

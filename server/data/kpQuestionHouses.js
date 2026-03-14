@@ -67,6 +67,8 @@ const KP_QUESTION_HOUSES = {
   return:          { favorable: [2, 7, 11],     unfavorable: [3, 9, 12],     primaryCusp: 11 },
   // Book p.299: reinstatement = judge 2, 6, 10. Sub-lord of 10th cusp decides
   reinstatement:   { favorable: [2, 6, 10],     unfavorable: [1, 5, 9],      primaryCusp: 10 },
+  // Book p.292: seniority/grievance = 11th cusp (desire fulfilment). Sub-lord of 11th decides.
+  seniority:       { favorable: [2, 6, 10, 11], unfavorable: [5, 8, 12],     primaryCusp: 11 },
   // Book p.189: competitive exam = 4th cusp (education), houses 4,9,11 for success
   competitive_exam:{ favorable: [4, 9, 11],     unfavorable: [3, 8, 12],     primaryCusp: 4 },
   // Separation: 7th cusp, houses 1,6,10 support separation (negation of marriage houses)

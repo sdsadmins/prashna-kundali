@@ -1,39 +1,291 @@
 /**
- * KP Yes/No Determination — Book-Faithful Method
+ * KP Yes/No Determination — Hybrid Significator Method
  *
  * Based on K.S. Krishnamurti's "KP Reader VI: Horary Astrology"
  *
- * The book's method (extracted from 32 worked examples):
+ * Method (derived from 34 worked examples):
  * 1. Find sub-lord of the relevant house cusp
- * 2. Find which constellation (nakshatra) the sub-lord is deposited in
- * 3. The lord of that constellation controls the sub-lord's results
- * 4. KEY CHECKS (in order of priority):
- *    a. Constellation lord retrograde (non-shadow) → DENIAL
- *    b. Sub-lord retrograde (non-shadow) → weakens/delays
- *    c. Sub-lord's house occupation → if in favorable house → YES
- *    d. Constellation lord's house occupation → if favorable → YES
- *    e. Constellation lord's ownership → check favorable/unfavorable
- *    f. Default → YES (book leans YES when both direct and neutral)
+ * 2. Retrograde filter:
+ *    - Constellation lord retrograde → denial for shadow sub-lords, delay for real
+ *    - Sub-lord retrograde → delay modifier
+ * 3. Sub-lord's house OCCUPATION is the primary indicator (book's approach):
+ *    - In favorable house → YES (Ex.4: "Venus in 11th = marriage promised")
+ *    - In unfavorable house → check constellation lord signification for rescue
+ *    - In neutral house → constellation lord decides
+ * 4. Constellation lord analysis (when sub-lord doesn't decide):
+ *    - Const lord in favorable house → YES
+ *    - Const lord in unfavorable house → NO
+ *    - Const lord neutral → use 4-level signification scoring (A>B>C>D)
+ * 5. Default → YES (book leans YES when both direct and neutral)
  *
- * NOTE: Rahu/Ketu are always retrograde (shadow planets) — not penalized.
- * Moon is never retrograde — always safe.
+ * The signification scoring (A>B>C>D levels) is used for:
+ *    - Rescuing unfavorable sub-lord positions via constellation lord
+ *    - Deciding when both occupation checks are neutral
+ *    - NOT for overriding favorable occupation (book treats occupation as primary)
  */
 const { getNakshatraFromDegree } = require('./nakshatra');
 const { getSubByDegree } = require('../data/kpSubTable');
 const { getQuestionHouses } = require('../data/kpQuestionHouses');
 const { getHousesSignifiedByPlanet, getHouseOfPlanet, getSignLord } = require('./kpSignificators');
 
-// Shadow planets are always retrograde — don't penalize them
 const SHADOW_PLANETS = ['rahu', 'ketu'];
+const LEVEL_WEIGHTS = { A: 4, B: 3, C: 2, D: 1 };
 
 function isPenalizableRetrograde(planet, planets) {
   if (SHADOW_PLANETS.includes(planet)) return false;
-  if (planet === 'moon') return false; // Moon never retrograde
+  if (planet === 'moon') return false;
   return planets[planet] && planets[planet].isRetrograde;
 }
 
-function buildResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-  constellationLord, housesSignified, score, reasoning, houseMapping) {
+/**
+ * Score a planet's house significations across all 4 levels.
+ */
+function scoreSignifications(planet, significators, favorable, unfavorable) {
+  const significations = getHousesSignifiedByPlanet(planet, significators);
+  let favScore = 0, unfavScore = 0;
+  const favHouses = [], unfavHouses = [], details = [];
+
+  for (const { house, level } of significations) {
+    const weight = LEVEL_WEIGHTS[level];
+    if (favorable.includes(house)) {
+      favScore += weight;
+      if (!favHouses.includes(house)) favHouses.push(house);
+      details.push('H' + house + '(' + level + ':+' + weight + ')');
+    } else if (unfavorable.includes(house)) {
+      unfavScore += weight;
+      if (!unfavHouses.includes(house)) unfavHouses.push(house);
+      details.push('H' + house + '(' + level + ':-' + weight + ')');
+    }
+  }
+
+  return { favScore, unfavScore, favHouses, unfavHouses, details, significations };
+}
+
+/**
+ * Multi-cusp health/cure check — per book Ex.28.
+ * If 11th cusp sub-lord is in an unfavorable house or retrograde → cure denied.
+ */
+function healthCureDenied(houses, planets, unfavorable, reasoning) {
+  const cusp11Deg = houses[10];
+  const cusp11Sub = getSubByDegree(cusp11Deg);
+  const cureSubLord = cusp11Sub.subLord;
+  reasoning.push('[Health] 11th cusp sub-lord: ' + cureSubLord);
+
+  if (!planets[cureSubLord]) return false;
+
+  const cureDeg = planets[cureSubLord].longitude;
+  let cureHouse = getHouseOfPlanet(cureDeg, houses);
+
+  // Shadow planets: use sign lord's house
+  if (SHADOW_PLANETS.includes(cureSubLord)) {
+    const sl = getSignLord(cureDeg);
+    if (planets[sl]) cureHouse = getHouseOfPlanet(planets[sl].longitude, houses);
+  }
+
+  if (unfavorable.includes(cureHouse)) {
+    reasoning.push('[Health] 11th sub-lord ' + cureSubLord + ' in unfav H' + cureHouse + ' — cure denied');
+    return true;
+  }
+  if (isPenalizableRetrograde(cureSubLord, planets)) {
+    reasoning.push('[Health] 11th sub-lord ' + cureSubLord + ' retrograde — cure denied');
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Analyze yes/no using KP hybrid significator method.
+ */
+function analyzeYesNo(questionCategory, houses, planets, significators) {
+  const houseMapping = getQuestionHouses(questionCategory);
+  const { favorable, unfavorable, primaryCusp } = houseMapping;
+  const reasoning = [];
+
+  // ── Step 1: Get cusp sub-lord ──
+  const cuspDegree = houses[primaryCusp - 1];
+  const cuspSub = getSubByDegree(cuspDegree);
+  const subLord = cuspSub.subLord;
+  reasoning.push('Cusp ' + primaryCusp + ' at ' + cuspDegree.toFixed(2) + '° → sub-lord: ' + subLord);
+
+  if (!planets[subLord]) {
+    return { verdict: 'NO', primaryCusp, subLord, reasoning: ['Sub-lord not found'], houseMapping };
+  }
+
+  // ── Step 2: Constellation lord ──
+  const subLordDeg = planets[subLord].longitude;
+  const subLordNak = getNakshatraFromDegree(subLordDeg);
+  const constellationLord = subLordNak.lord;
+
+  // House positions
+  const subHouse = getHouseOfPlanet(subLordDeg, houses);
+  const subInFav = favorable.includes(subHouse);
+  const subInUnfav = unfavorable.includes(subHouse);
+
+  let constHouse = null, constInFav = false, constInUnfav = false;
+  if (planets[constellationLord]) {
+    constHouse = getHouseOfPlanet(planets[constellationLord].longitude, houses);
+    constInFav = favorable.includes(constHouse);
+    constInUnfav = unfavorable.includes(constHouse);
+  }
+
+  reasoning.push(subLord + ' in ' + subLordNak.nakshatra.en + ' (lord: ' + constellationLord +
+    '), house ' + subHouse + (subInFav ? ' [FAV]' : subInUnfav ? ' [UNFAV]' : ' [neutral]'));
+  if (constHouse !== null) {
+    reasoning.push('Const-lord ' + constellationLord + ' in house ' + constHouse +
+      (constInFav ? ' [FAV]' : constInUnfav ? ' [UNFAV]' : ' [neutral]'));
+  }
+
+  // Signification scores (computed for all paths, logged for transparency)
+  const subScore = scoreSignifications(subLord, significators, favorable, unfavorable);
+  const constScore = scoreSignifications(constellationLord, significators, favorable, unfavorable);
+  reasoning.push('[Sub ' + subLord + '] fav=' + subScore.favScore + ' unfav=' + subScore.unfavScore +
+    ' | ' + subScore.details.join(', '));
+  reasoning.push('[Const ' + constellationLord + '] fav=' + constScore.favScore +
+    ' unfav=' + constScore.unfavScore + ' | ' + constScore.details.join(', '));
+
+  // ── Step 3: Retrograde checks ──
+  const constRetro = isPenalizableRetrograde(constellationLord, planets);
+  const subRetro = isPenalizableRetrograde(subLord, planets);
+
+  if (constRetro) reasoning.push('⚠ Constellation lord ' + constellationLord + ' RETROGRADE');
+  if (subRetro) reasoning.push('⚠ Sub-lord ' + subLord + ' retrograde — delays');
+
+  // ── VERDICT ──
+
+  // Layer 1: Constellation lord retrograde → strong denial/delay
+  if (constRetro) {
+    // Sub-lord in favorable house overrides retrograde (Ex.25 pattern)
+    if (subInFav) {
+      const v = 'YES_WITH_DELAY';
+      reasoning.push('VERDICT: ' + v + ' — sub-lord in favorable H' + subHouse + ' overrides retro const lord');
+      return mkResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+    // Shadow planet fully depends on constellation lord
+    if (SHADOW_PLANETS.includes(subLord)) {
+      reasoning.push('VERDICT: NO — shadow ' + subLord + ' depends on retro ' + constellationLord);
+      return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+    // Real direct sub-lord → delay
+    if (!subRetro) {
+      reasoning.push('VERDICT: YES_WITH_DELAY — direct ' + subLord + ' delivers despite retro const lord');
+      return mkResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+    reasoning.push('VERDICT: NO — both sub-lord and const lord weakened');
+    return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  const delay = subRetro ? 'YES_WITH_DELAY' : 'YES';
+
+  // Layer 2: Sub-lord in favorable house → YES (book's primary indicator)
+  // "Venus in 6th = success" (Ex.27), "Ketu in 3rd = leaving residence → YES" (Ex.21)
+  if (subInFav) {
+    // Health/cure exception: book Ex.28 checks 11th cusp (cure) as secondary denial
+    if ((questionCategory === 'health' || questionCategory === 'recovery') &&
+        healthCureDenied(houses, planets, unfavorable, reasoning)) {
+      reasoning.push('VERDICT: NO — primary cusp favorable but cure (11th cusp) denied');
+      return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+    reasoning.push('VERDICT: ' + delay + ' — sub-lord in favorable house ' + subHouse);
+    return mkResult(delay, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  // Layer 3: Sub-lord in unfavorable house → constellation lord must rescue
+  if (subInUnfav) {
+    // 3a: Const lord in favorable house → rescues (YES_WITH_DELAY)
+    if (constInFav) {
+      reasoning.push('Sub-lord in unfav H' + subHouse + ' but const lord in fav H' + constHouse);
+      reasoning.push('VERDICT: YES_WITH_DELAY — const lord occupation rescues');
+      return mkResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+
+    // 3b: Shadow planet → check sign lord's house
+    if (SHADOW_PLANETS.includes(subLord)) {
+      const signLord = getSignLord(subLordDeg);
+      if (planets[signLord]) {
+        const slHouse = getHouseOfPlanet(planets[signLord].longitude, houses);
+        const slInFav = favorable.includes(slHouse);
+        reasoning.push(subLord + ' sign lord ' + signLord + ' in house ' + slHouse);
+        if (slInFav) {
+          reasoning.push('VERDICT: ' + delay + ' — shadow planet sign lord in favorable house');
+          return mkResult(delay, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+            constellationLord, subScore, constScore, reasoning, houseMapping);
+        }
+      }
+    }
+
+    // 3c: Const lord signification scoring → rescue if favorable >= unfavorable
+    if (constScore.favScore >= constScore.unfavScore && constScore.favScore > 0) {
+      reasoning.push('Sub-lord in unfav H' + subHouse + ' but const lord signifies fav houses');
+      reasoning.push('VERDICT: YES_WITH_DELAY — const lord signification rescues');
+      return mkResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+
+    // 3d: Const lord OWNS favorable houses (D-level) — weaker rescue
+    // Per book Ex.26: Moon in H8 (unfav), but Sun owns H11 (fav for promotion) → YES
+    const constOwns = [];
+    for (let h = 1; h <= 12; h++) {
+      if (significators[h].D.includes(constellationLord)) constOwns.push(h);
+    }
+    const ownsFav = constOwns.filter(h => favorable.includes(h));
+    const ownsUnfav = constOwns.filter(h => unfavorable.includes(h));
+    if (ownsFav.length > 0 && ownsFav.length >= ownsUnfav.length) {
+      reasoning.push('Const lord ' + constellationLord + ' owns fav house(s) ' + ownsFav.join(','));
+      reasoning.push('VERDICT: YES_WITH_DELAY — const lord ownership rescues');
+      return mkResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+        constellationLord, subScore, constScore, reasoning, houseMapping);
+    }
+
+    // 3e: No rescue → NO
+    reasoning.push('VERDICT: NO — sub-lord in unfav H' + subHouse + ', no rescue');
+    return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  // Layer 4: Sub-lord in neutral house → constellation lord decides
+
+  // 4a: Const lord in favorable house → YES
+  if (constInFav) {
+    reasoning.push('VERDICT: ' + delay + ' — const lord in favorable house ' + constHouse);
+    return mkResult(delay, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  // 4b: Const lord in unfavorable house → NO
+  if (constInUnfav) {
+    reasoning.push('VERDICT: NO — const lord in unfavorable house ' + constHouse);
+    return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  // 4c: Both neutral → default YES per book convention
+  // Book: "sub-lord in direct motion, in constellation of direct planet → event promised"
+  // Only deny when unfavorable STRONGLY dominates (2× or more)
+  const totalFav = subScore.favScore + constScore.favScore;
+  const totalUnfav = subScore.unfavScore + constScore.unfavScore;
+
+  // Minimum threshold: unfav must be >= 4 (meaningful) AND >= 2× fav to deny
+  if (totalUnfav >= 4 && totalUnfav >= totalFav * 2) {
+    reasoning.push('VERDICT: NO — signification strongly unfavorable (fav=' + totalFav + ' unfav=' + totalUnfav + ')');
+    return mkResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+      constellationLord, subScore, constScore, reasoning, houseMapping);
+  }
+
+  // Layer 5: Default → YES
+  reasoning.push('VERDICT: ' + delay + ' — event promised (direct motion, no clear denial)');
+  return mkResult(delay, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+    constellationLord, subScore, constScore, reasoning, houseMapping);
+}
+
+function mkResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
+  constellationLord, subScore, constScore, reasoning, houseMapping) {
   return {
     verdict,
     primaryCusp,
@@ -42,292 +294,46 @@ function buildResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subL
     subLordDegree: subLordDeg,
     subLordNakshatra: subLordNak,
     constellationLord,
-    housesSignified,
-    favHouses: score.favHouses || [],
-    unfavHouses: score.unfavHouses || [],
+    housesSignified: subScore.significations || [],
+    favHouses: subScore.favHouses || [],
+    unfavHouses: subScore.unfavHouses || [],
+    favScore: (subScore.favScore || 0) + (constScore.favScore || 0),
+    unfavScore: (subScore.unfavScore || 0) + (constScore.unfavScore || 0),
     reasoning,
     houseMapping,
   };
 }
 
-function makeResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-  constellationLord, reasoning, houseMapping) {
-  return buildResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-    constellationLord, [], { favHouses: [], unfavHouses: [] }, reasoning, houseMapping);
-}
-
 /**
- * Multi-cusp check for health/recovery questions.
- * Per book Ex.28: Also check 11th cusp (cure). If 11th cusp sub-lord is in an
- * unfavorable house for health OR is retrograde → cure denied → override to NO.
+ * Qualitative interpretation based on sub-lord identity.
+ * From KP Reader VI pp.220-221, 254.
  */
-function healthCureCheck(houses, planets, favorable, unfavorable, reasoning) {
-  const cusp11Deg = houses[10]; // 11th cusp (0-indexed)
-  const cusp11Sub = getSubByDegree(cusp11Deg);
-  const cureSubLord = cusp11Sub.subLord;
-  reasoning.push('[Multi-cusp] 11th cusp (cure) sub-lord: ' + cureSubLord);
+const SUB_LORD_QUALITIES = {
+  sun:     { en: 'Through government, authority, or father\'s help. Quick and dignified resolution.',
+             mr: 'सरकार, अधिकारी किंवा वडिलांच्या मदतीने. जलद आणि प्रतिष्ठित निराकरण.' },
+  moon:    { en: 'Quick and friendly outcome. The other party will readily agree.',
+             mr: 'जलद आणि मैत्रीपूर्ण निकाल. समोरची व्यक्ती सहज सहमत होईल.' },
+  mars:    { en: 'Some tension or conflict in the process. Atmosphere may be charged.',
+             mr: 'प्रक्रियेत काही तणाव किंवा संघर्ष. वातावरण तापलेले असू शकते.' },
+  mercury: { en: 'Through correspondence, agents, or in instalments. Communication is key.',
+             mr: 'पत्रव्यवहार, एजंट किंवा हप्त्यांद्वारे. संवाद महत्त्वाचा.' },
+  jupiter: { en: 'Through lawful and legitimate means. Full and honorable outcome.',
+             mr: 'कायदेशीर आणि योग्य मार्गाने. पूर्ण आणि सन्मानजनक निकाल.' },
+  venus:   { en: 'Through compromise and sweet words. Friendly and pleasant resolution.',
+             mr: 'तडजोड आणि गोड शब्दांनी. मैत्रीपूर्ण आणि आनंददायी निराकरण.' },
+  saturn:  { en: 'Delay and some obstacles expected. May get a little less than desired.',
+             mr: 'विलंब आणि काही अडथळे अपेक्षित. अपेक्षेपेक्षा थोडे कमी मिळू शकते.' },
+  rahu:    { en: 'Unexpected or unconventional means. Foreign connections may be involved.',
+             mr: 'अनपेक्षित किंवा अपारंपरिक मार्गाने. परदेशी संपर्क असू शकतात.' },
+  ketu:    { en: 'Sudden or spiritual dimension to the outcome. May involve hidden factors.',
+             mr: 'निकालात अचानक किंवा आध्यात्मिक आयाम. छुपे घटक असू शकतात.' },
+};
 
-  if (!planets[cureSubLord]) return null;
-
-  const cureDeg = planets[cureSubLord].longitude;
-  let cureHouse = getHouseOfPlanet(cureDeg, houses);
-
-  // For shadow planets, use sign lord
-  if (SHADOW_PLANETS.includes(cureSubLord)) {
-    const sl = getSignLord(cureDeg);
-    if (planets[sl]) cureHouse = getHouseOfPlanet(planets[sl].longitude, houses);
-  }
-
-  // Check if cure sub-lord is in unfavorable house for health
-  if (unfavorable.includes(cureHouse)) {
-    reasoning.push('[Multi-cusp] 11th cusp sub-lord ' + cureSubLord + ' in unfavorable house ' + cureHouse + ' — cure denied');
-    return 'NO';
-  }
-
-  // Check if cure sub-lord is retrograde
-  if (isPenalizableRetrograde(cureSubLord, planets)) {
-    reasoning.push('[Multi-cusp] 11th cusp sub-lord ' + cureSubLord + ' is retrograde — cure denied');
-    return 'NO';
-  }
-
-  return null; // No override
-}
-
-/**
- * Analyze yes/no for a question using KP sub-lord method.
- * Follows the book's approach faithfully.
- */
-function analyzeYesNo(questionCategory, houses, planets, significators) {
-  const houseMapping = getQuestionHouses(questionCategory);
-  const { favorable, unfavorable, primaryCusp } = houseMapping;
-  const reasoning = [];
-
-  // Step 1: Get the cusp degree
-  const cuspDegree = houses[primaryCusp - 1];
-  reasoning.push('Primary cusp: House ' + primaryCusp + ' at ' + cuspDegree.toFixed(2) + '°');
-
-  // Step 2: Find sub-lord of the cusp
-  const cuspSub = getSubByDegree(cuspDegree);
-  const subLord = cuspSub.subLord;
-  reasoning.push('Sub-lord of cusp ' + primaryCusp + ': ' + subLord);
-
-  // Step 3: Find constellation the sub-lord is in
-  if (!planets[subLord]) {
-    return {
-      verdict: 'NO',
-      primaryCusp,
-      subLord,
-      reasoning: ['Sub-lord planet not found in chart — defaulting NO'],
-      houseMapping,
-    };
-  }
-  const subLordDeg = planets[subLord].longitude;
-  const subLordNak = getNakshatraFromDegree(subLordDeg);
-  const constellationLord = subLordNak.lord;
-  reasoning.push(subLord + ' is in ' + subLordNak.nakshatra.en + ' (lord: ' + constellationLord + ')');
-
-  // House placements (book's primary indicators)
-  const subLordHouse = getHouseOfPlanet(subLordDeg, houses);
-  const subInFav = favorable.includes(subLordHouse);
-  const subInUnfav = unfavorable.includes(subLordHouse);
-  reasoning.push('Sub-lord ' + subLord + ' occupies house ' + subLordHouse +
-    (subInFav ? ' (favorable)' : subInUnfav ? ' (unfavorable)' : ' (neutral)'));
-
-  // For shadow planets, also compute sign lord's house (used as fallback in Check 3)
-  let shadowSignLordHouse = null;
-  let shadowSignLord = null;
-  if (SHADOW_PLANETS.includes(subLord)) {
-    shadowSignLord = getSignLord(subLordDeg);
-    if (planets[shadowSignLord]) {
-      shadowSignLordHouse = getHouseOfPlanet(planets[shadowSignLord].longitude, houses);
-      reasoning.push(subLord + ' sign lord: ' + shadowSignLord + ' in house ' + shadowSignLordHouse);
-    }
-  }
-
-  let constLordHouse = null;
-  let constInFav = false;
-  let constInUnfav = false;
-  if (planets[constellationLord]) {
-    const constLordDeg = planets[constellationLord].longitude;
-    constLordHouse = getHouseOfPlanet(constLordDeg, houses);
-    constInFav = favorable.includes(constLordHouse);
-    constInUnfav = unfavorable.includes(constLordHouse);
-    reasoning.push('Constellation lord ' + constellationLord + ' occupies house ' + constLordHouse +
-      (constInFav ? ' (favorable)' : constInUnfav ? ' (unfavorable)' : ' (neutral)'));
-  }
-
-  // ─── CHECK 1: Constellation lord retrograde ───
-  // Per book: retrograde constellation lord means the sub-lord's results are blocked/delayed.
-  // Ex.31: Rahu (shadow) + Saturn retro → NO (shadow planet fully depends on const lord)
-  // Ex.25: Moon (direct real) + Jupiter retro → YES (real direct sub-lord can still deliver)
-  // Rule: shadow sub-lord + retro const lord → NO; real direct sub-lord + retro const lord → YES_WITH_DELAY
-  if (isPenalizableRetrograde(constellationLord, planets)) {
-    reasoning.push('CRITICAL: Constellation lord ' + constellationLord + ' is RETROGRADE');
-    if (subInFav) {
-      reasoning.push('BUT sub-lord ' + subLord + ' in favorable house ' + subLordHouse + ' — rescues verdict');
-      reasoning.push('VERDICT: YES_WITH_DELAY — sub-lord position overrides retrograde constellation lord');
-      return makeResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    }
-    // Shadow planet sub-lord has no independent motion — fully depends on constellation lord
-    if (SHADOW_PLANETS.includes(subLord)) {
-      reasoning.push('Sub-lord ' + subLord + ' is a shadow planet with no independent motion');
-      reasoning.push('VERDICT: NO — shadow sub-lord depends on retrograde constellation lord');
-      return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    }
-    // Real planet sub-lord in direct motion can still deliver, but with delay
-    if (!isPenalizableRetrograde(subLord, planets)) {
-      reasoning.push('Sub-lord ' + subLord + ' is direct — can still deliver results with delay');
-      reasoning.push('VERDICT: YES_WITH_DELAY — event delayed by retrograde constellation lord');
-      return makeResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    }
-    reasoning.push('VERDICT: NO — both sub-lord and constellation lord weakened');
-    return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-
-  // ─── CHECK 2: Sub-lord retrograde → delays ───
-  let retroWarning = false;
-  if (isPenalizableRetrograde(subLord, planets)) {
-    reasoning.push('WARNING: Sub-lord ' + subLord + ' is retrograde — delays indicated');
-    retroWarning = true;
-  }
-
-  // ─── CHECK 3: Sub-lord's house occupation (book's primary indicator) ───
-  // Per book: "Venus in 6th house = success" (Ex.27), "Ketu in 3rd house = leaving residence → YES" (Ex.21)
-  if (subInFav) {
-    // For health/recovery: also check 11th cusp (cure) — book Ex.28 checks multiple cusps
-    if (questionCategory === 'health' || questionCategory === 'recovery') {
-      const cureOverride = healthCureCheck(houses, planets, favorable, unfavorable, reasoning);
-      if (cureOverride === 'NO') {
-        reasoning.push('VERDICT: NO — primary cusp favorable but cure (11th) denied');
-        return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-          constellationLord, reasoning, houseMapping);
-      }
-    }
-    const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-    reasoning.push('VERDICT: ' + v + ' — sub-lord in favorable house ' + subLordHouse);
-    return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-  if (subInUnfav) {
-    // Sub-lord in unfavorable house — but check if constellation lord rescues
-    if (constInFav) {
-      reasoning.push('Sub-lord in unfavorable house ' + subLordHouse + ' but constellation lord in favorable house ' + constLordHouse);
-      reasoning.push('VERDICT: YES_WITH_DELAY — mixed signals, constellation lord favorable');
-      return makeResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    }
-    // For shadow planet sub-lords: use sign lord's house as alternative indicator
-    // Shadow planets represent their sign lord, so sign lord's house is more meaningful
-    if (SHADOW_PLANETS.includes(subLord) && shadowSignLordHouse !== null) {
-      const slInFav = favorable.includes(shadowSignLordHouse);
-      const slInUnfav = unfavorable.includes(shadowSignLordHouse);
-      if (slInFav) {
-        reasoning.push(subLord + ' sign lord ' + shadowSignLord + ' in favorable house ' + shadowSignLordHouse + ' — overrides');
-        const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-        reasoning.push('VERDICT: ' + v + ' — shadow planet sign lord in favorable house');
-        return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-          constellationLord, reasoning, houseMapping);
-      }
-      if (!slInUnfav) {
-        // Sign lord in neutral house — check if constellation lord in house 11 rescues.
-        // In KP, house 11 = "fulfillment of desires" — universally positive.
-        // Per book Ex.32: Rahu sub in unfav house, but constellation lord Jupiter in house 11 → YES.
-        if (constLordHouse === 11) {
-          reasoning.push('Constellation lord ' + constellationLord + ' in house 11 (fulfillment of desires) — event promised');
-          const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-          reasoning.push('VERDICT: ' + v + ' — house 11 constellation lord overrides shadow planet position');
-          return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-            constellationLord, reasoning, houseMapping);
-        }
-        // Shadow planet's original position was unfavorable,
-        // neutral sign lord is not strong enough to rescue. Stay with NO.
-        reasoning.push('VERDICT: NO — ' + subLord + ' in unfavorable house ' + subLordHouse +
-          ', sign lord ' + shadowSignLord + ' neutral (not enough to rescue)');
-        return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-          constellationLord, reasoning, houseMapping);
-      } else {
-        // Both shadow planet and its sign lord in unfavorable → NO
-        reasoning.push('VERDICT: NO — ' + subLord + ' and sign lord both in unfavorable houses');
-        return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-          constellationLord, reasoning, houseMapping);
-      }
-    } else if (!SHADOW_PLANETS.includes(subLord)) {
-      // For real planet sub-lords, check if constellation lord OWNS favorable houses
-      // Per Ex.26: Moon in house 8 (unfav), but Sun owns house 11 (favorable for promotion) → YES
-      const tempOwns = [];
-      for (let h = 1; h <= 12; h++) {
-        if (significators[h].D.includes(constellationLord)) tempOwns.push(h);
-      }
-      const tempOwnsFav = tempOwns.filter(h => favorable.includes(h));
-      const tempOwnsUnfav = tempOwns.filter(h => unfavorable.includes(h));
-      if (tempOwnsFav.length > 0 && tempOwnsFav.length > tempOwnsUnfav.length) {
-        reasoning.push('Sub-lord in unfavorable house ' + subLordHouse + ' but constellation lord ' +
-          constellationLord + ' owns favorable house(s) ' + tempOwnsFav.join(','));
-        reasoning.push('VERDICT: YES_WITH_DELAY — constellation lord ownership rescues verdict');
-        return makeResult('YES_WITH_DELAY', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-          constellationLord, reasoning, houseMapping);
-      }
-      reasoning.push('VERDICT: NO — sub-lord in unfavorable house ' + subLordHouse);
-      return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    } else {
-      reasoning.push('VERDICT: NO — sub-lord in unfavorable house ' + subLordHouse);
-      return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-        constellationLord, reasoning, houseMapping);
-    }
-  }
-
-  // ─── CHECK 4: Constellation lord's house occupation ───
-  if (constInFav) {
-    const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-    reasoning.push('VERDICT: ' + v + ' — constellation lord in favorable house ' + constLordHouse);
-    return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-  if (constInUnfav) {
-    reasoning.push('VERDICT: NO — constellation lord in unfavorable house ' + constLordHouse);
-    return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-
-  // ─── CHECK 5: Constellation lord's house ownership (D-level) ───
-  // Check which houses the constellation lord owns (sign lordship)
-  const constLordOwns = [];
-  for (let h = 1; h <= 12; h++) {
-    if (significators[h].D.includes(constellationLord)) {
-      constLordOwns.push(h);
-    }
-  }
-  const ownsFav = constLordOwns.filter(h => favorable.includes(h));
-  const ownsUnfav = constLordOwns.filter(h => unfavorable.includes(h));
-  reasoning.push(constellationLord + ' owns houses: ' + constLordOwns.join(', ') +
-    ' (fav: ' + (ownsFav.join(',') || 'none') + ', unfav: ' + (ownsUnfav.join(',') || 'none') + ')');
-
-  if (ownsFav.length > ownsUnfav.length) {
-    const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-    reasoning.push('VERDICT: ' + v + ' — constellation lord owns more favorable houses');
-    return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-  if (ownsUnfav.length > ownsFav.length) {
-    reasoning.push('VERDICT: NO — constellation lord owns more unfavorable houses');
-    return makeResult('NO', primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-      constellationLord, reasoning, houseMapping);
-  }
-
-  // ─── CHECK 6: Default → YES ───
-  // Per book: when sub-lord and constellation lord are both direct and positions are neutral,
-  // the event is promised. "Venus in direct motion, in constellation of Moon (never retrograde) → YES" (Ex.16)
-  const v = retroWarning ? 'YES_WITH_DELAY' : 'YES';
-  reasoning.push('VERDICT: ' + v + ' — both sub-lord and constellation lord in direct motion, event promised');
-  return makeResult(v, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
-    constellationLord, reasoning, houseMapping);
+function getSubLordQuality(subLord) {
+  return SUB_LORD_QUALITIES[subLord] || null;
 }
 
 module.exports = {
   analyzeYesNo,
+  getSubLordQuality,
 };

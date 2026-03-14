@@ -48,18 +48,22 @@ function calculateDashaBalance(moonLongitude, judgmentDate) {
   // Calculate Bhukti (sub-period) sequence within current Maha Dasha
   const bhuktis = calculateSubPeriods(dashaLord, dashaStartDate, dashaYears);
 
-  // Find current Bhukti
+  // Find current Bhukti and pre-compute anthras for ALL bhuktis in current maha dasha
+  // (not capped at 3 years — needed for long-range predictions like Ex.5 Vehicle at 6yr)
   const now = judgmentDate.getTime();
   let currentBhukti = null;
   let currentAnthra = null;
   for (const bhukti of bhuktis) {
     const bStart = new Date(bhukti.startDate).getTime();
     const bEnd = new Date(bhukti.endDate).getTime();
+
+    // Pre-compute anthras for all bhuktis in the maha dasha
+    bhukti.anthras = calculateSubPeriods(bhukti.lord, new Date(bhukti.startDate), bhukti.durationYears);
+
     if (now >= bStart && now < bEnd) {
       currentBhukti = bhukti;
-      // Calculate Anthra within current Bhukti
-      const anthras = calculateSubPeriods(bhukti.lord, new Date(bhukti.startDate), bhukti.durationYears);
-      for (const anthra of anthras) {
+      // Find current Anthra
+      for (const anthra of bhukti.anthras) {
         const aStart = new Date(anthra.startDate).getTime();
         const aEnd = new Date(anthra.endDate).getTime();
         if (now >= aStart && now < aEnd) {
@@ -67,8 +71,6 @@ function calculateDashaBalance(moonLongitude, judgmentDate) {
           break;
         }
       }
-      currentBhukti.anthras = anthras;
-      break;
     }
   }
 

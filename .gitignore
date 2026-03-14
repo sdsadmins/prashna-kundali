@@ -7,3 +7,16 @@ client/node_modules/
 client/dist/
 .vercel
 .env*.local
+.env.prod
+.env.vercel
+
+# Debug/scratch files
+*.jpeg
+apia/
+check-db.js
+test-kp-debug*.js
+test-outside-verified.js
+test-reeval-past.js
+test-swisseph-cusps.js
+test-timing-book.js
+kpdocs/
