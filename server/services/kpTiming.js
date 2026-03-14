@@ -15,7 +15,7 @@
  *
  * Reference: K.S. Krishnamurti, "KP Reader VI", Section IV — Timing
  */
-const { calcPlanetPosition, dateToJulianDay, getAyanamsa } = require('./ephemeris');
+const { calcPlanetPosition, dateToJulianDay, getAyanamsa, calcTropicalAscendant } = require('./ephemeris');
 const { KP_SUB_TABLE } = require('../data/kpSubTable');
 const { SIGNS, DAY_LORDS, VIMSHOTTARI_ORDER, VIMSHOTTARI_YEARS } = require('../data/constants');
 const { getQuestionHouses } = require('../data/kpQuestionHouses');
@@ -252,6 +252,164 @@ function buildSignificatorTargetScores(significators, questionCategory, targetPo
   }
 
   return scores;
+}
+
+/**
+ * Find when a retrograde planet turns direct (direct station).
+ * Binary-searches forward from startJd until isRetrograde flips from true to false.
+ * Only meaningful for Mars, Mercury, Jupiter, Venus, Saturn.
+ *
+ * @returns {{ jd: number, date: string }} or null if not found within maxDays
+ */
+function findDirectStationDate(planetName, startJd, maxDays = 365) {
+  const RETRO_PLANETS = new Set(['mars', 'mercury', 'jupiter', 'venus', 'saturn']);
+  if (!RETRO_PLANETS.has(planetName)) return null;
+
+  const startPos = calcPlanetPosition(startJd, planetName);
+  if (!startPos.isRetrograde) return null; // Already direct
+
+  // Coarse search: step 1 day to find when retrograde → direct
+  let prevJd = startJd;
+  for (let d = 1; d <= maxDays; d++) {
+    const testJd = startJd + d;
+    const pos = calcPlanetPosition(testJd, planetName);
+    if (!pos.isRetrograde) {
+      // Binary search between prevJd and testJd for precision (~0.001 day ≈ 1.4 min)
+      let lo = prevJd, hi = testJd;
+      while (hi - lo > 0.001) {
+        const mid = (lo + hi) / 2;
+        const midPos = calcPlanetPosition(mid, planetName);
+        if (midPos.isRetrograde) lo = mid;
+        else hi = mid;
+      }
+      const directJd = Math.ceil(hi); // Round up to next day
+      return {
+        jd: hi,
+        date: julianDayToDate(directJd).toISOString().split('T')[0],
+      };
+    }
+    prevJd = testJd;
+  }
+  return null;
+}
+
+/**
+ * Find fast planet transits (Mars/Mercury/Venus) through target positions.
+ * Returns dates when the planet's sidereal longitude falls in a target range.
+ *
+ * @returns {Array<{date, jd, degree, targetRange, planet}>}
+ */
+function findFastPlanetTransits(planetName, startJd, targetPositions, maxDays = 730) {
+  if (!targetPositions || targetPositions.length === 0) return [];
+
+  // Step sizes tuned to planet speed: Mercury fastest (~4°/day), Mars slowest (~0.5°/day)
+  const stepMap = { mars: 1, mercury: 0.25, venus: 0.5 };
+  const step = stepMap[planetName] || 0.5;
+  const results = [];
+  const seenDates = new Set();
+
+  for (let d = 0; d <= maxDays; d += step) {
+    const testJd = startJd + d;
+    const pos = calcPlanetPosition(testJd, planetName);
+    const match = isInRanges(pos.longitude, targetPositions);
+    if (match) {
+      const dateStr = julianDayToDate(testJd).toISOString().split('T')[0];
+      if (!seenDates.has(dateStr)) {
+        seenDates.add(dateStr);
+        results.push({
+          date: dateStr,
+          dateObj: julianDayToDate(testJd),
+          jd: testJd,
+          degree: pos.longitude,
+          targetRange: match,
+          planet: planetName,
+        });
+        if (results.length >= 30) break;
+      }
+      // Skip past this range
+      while (d <= maxDays) {
+        d += step;
+        const np = calcPlanetPosition(startJd + d, planetName);
+        if (!isInRanges(np.longitude, [match])) break;
+      }
+      d -= step;
+    }
+  }
+  return results;
+}
+
+/**
+ * Find the time on a given date when a sidereal degree rises on the ascendant.
+ * Uses the ascendant formula with iterative search across the day.
+ *
+ * @param {number} targetDegSidereal - The sidereal degree to watch for
+ * @param {string} dateStr - The date (YYYY-MM-DD)
+ * @param {number} latitude - Observer latitude
+ * @param {number} longitude - Observer longitude
+ * @returns {{ time: string, utcHours: number }} or null
+ */
+function findLagnaRisingTime(targetDegSidereal, dateStr, latitude, longitude) {
+  if (!latitude || !longitude) return null;
+
+  const baseDate = new Date(dateStr + 'T00:00:00Z');
+  const baseJd = dateToJulianDay(baseDate);
+  const ayanamsa = getAyanamsa(baseJd);
+
+  // Step through the day in 10-minute increments to find crossing
+  const stepMinutes = 10;
+  const stepsPerDay = Math.ceil(1440 / stepMinutes);
+  let prevAsc = null;
+  let crossingJd = null;
+
+  for (let i = 0; i <= stepsPerDay; i++) {
+    const jd = baseJd + (i * stepMinutes) / 1440;
+    const trop = calcTropicalAscendant(jd, latitude, longitude);
+    const sidAsc = ((trop.ascendant - ayanamsa) % 360 + 360) % 360;
+
+    if (prevAsc !== null) {
+      // Check if targetDeg was crossed (handle 360→0 wrap)
+      let crossed = false;
+      if (prevAsc <= targetDegSidereal && sidAsc >= targetDegSidereal) crossed = true;
+      if (prevAsc > 350 && sidAsc < 10 && targetDegSidereal > prevAsc) crossed = true;
+      if (prevAsc > 350 && sidAsc < 10 && targetDegSidereal < sidAsc) crossed = true;
+
+      if (crossed) {
+        // Binary search for precision within this 10-minute window
+        let lo = baseJd + ((i - 1) * stepMinutes) / 1440;
+        let hi = jd;
+        for (let iter = 0; iter < 15; iter++) { // ~0.4 second precision
+          const mid = (lo + hi) / 2;
+          const midTrop = calcTropicalAscendant(mid, latitude, longitude);
+          const midSid = ((midTrop.ascendant - ayanamsa) % 360 + 360) % 360;
+          // Determine which half contains the crossing
+          const midDist = ((targetDegSidereal - midSid) % 360 + 360) % 360;
+          if (midDist < 180 && midDist > 0) lo = mid;
+          else hi = mid;
+        }
+        crossingJd = (lo + hi) / 2;
+        break;
+      }
+    }
+    prevAsc = sidAsc;
+  }
+
+  if (!crossingJd) return null;
+
+  // Convert JD to UTC hours
+  const utcHours = (crossingJd - baseJd) * 24;
+  const hours = Math.floor(utcHours);
+  const minutes = Math.round((utcHours - hours) * 60);
+
+  // Convert to IST (UTC+5:30) for display
+  const istHours = utcHours + 5.5;
+  const istH = Math.floor(((istHours % 24) + 24) % 24);
+  const istM = Math.round((istHours - Math.floor(istHours)) * 60);
+
+  return {
+    utcTime: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} UTC`,
+    istTime: `${String(istH).padStart(2, '0')}:${String(istM % 60).padStart(2, '0')} IST`,
+    utcHours,
+  };
 }
 
 /**
@@ -748,7 +906,7 @@ function findFruitfulDashaPeriods(dashaBalance, significators, questionCategory,
 /**
  * Find dates where Sun transit AND favorable dasha period overlap.
  */
-function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResults, rulingPlanets, fruitfulDashaPeriods, fruitfulSignificators, sigTargetScores) {
+function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResults, rulingPlanets, fruitfulDashaPeriods, fruitfulSignificators, sigTargetScores, fastTransits) {
   if (!sunTransits || sunTransits.length === 0 || !allDashaPeriods || allDashaPeriods.length === 0) return [];
 
   const rpSet = new Set(rulingPlanets || []);
@@ -785,6 +943,18 @@ function findTransitDashaIntersection(sunTransits, allDashaPeriods, allMoonResul
         // Significator-based target score: varies per horary number (different cusps → different significators)
         if (sigTargetScores && st.targetRange && sigTargetScores.has(st.targetRange.number)) {
           score += sigTargetScores.get(st.targetRange.number);
+        }
+
+        // Fast planet transit confirmation: Mars/Mercury/Venus in target range near this date
+        if (fastTransits && fastTransits.length > 0) {
+          const confirming = new Set();
+          for (const ft of fastTransits) {
+            const ftMs = ft.dateObj.getTime();
+            if (Math.abs(ftMs - stMs) <= 7 * 86400000) { // Within 7 days
+              confirming.add(ft.planet);
+            }
+          }
+          score += confirming.size * 3; // +3 per confirming planet
         }
 
         // Check if there is a Moon+Day match near this Sun transit within the period
@@ -934,7 +1104,7 @@ function findGovernedPositions(planets) {
  * @param {Object} dashaBalance - From calculateDashaBalance()
  * @returns {Object} Timing predictions
  */
-function calculateEventTiming(rulingPlanets, significators, planets, questionCategory, judgmentDate, houses, dashaBalance, rejectedPlanets) {
+function calculateEventTiming(rulingPlanets, significators, planets, questionCategory, judgmentDate, houses, dashaBalance, rejectedPlanets, latitude, longitude) {
   const jd = dateToJulianDay(judgmentDate);
 
   // Step 1: Build target positions (sign + star + sub = all ruling planets)
@@ -983,6 +1153,12 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
   const nearTermMoon = findMoonTransitDates(
     jd, jd + 60, targetPositions, relaxedPositions, rulingPlanets
   );
+
+  // Step 5b: Fast planet transits (Mars/Mercury/Venus) — confirmation signals
+  const marsTransits = findFastPlanetTransits('mars', jd, effectiveTargets, 730);
+  const mercuryTransits = findFastPlanetTransits('mercury', jd, effectiveTargets, 730);
+  const venusTransits = findFastPlanetTransits('venus', jd, effectiveTargets, 730);
+  const allFastTransits = [...marsTransits, ...mercuryTransits, ...venusTransits];
 
   // Step 6: Three dasha methods
   // Method A: House signification
@@ -1064,7 +1240,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
 
   // Step 7: Transit-Dasha intersection
   const transitDashaIntersections = findTransitDashaIntersection(
-    sunTransits, allDashaPeriods, allMoonTransitResults, rulingPlanets, fruitfulDashaPeriods, commonPlanets, sigTargetScores
+    sunTransits, allDashaPeriods, allMoonTransitResults, rulingPlanets, fruitfulDashaPeriods, commonPlanets, sigTargetScores, allFastTransits
   );
 
   // Step 7b: Star-only transit search within top dasha periods (by score)
@@ -1176,6 +1352,16 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       confidence: 'medium',
       source: 'star-only-dasha',
       score: soi.score,
+    });
+  }
+
+  // Add fast planet transits (Mars/Mercury/Venus) as confirmation signals
+  for (const ft of allFastTransits.slice(0, 9)) {
+    prominentDates.push({
+      date: ft.date,
+      description: `${ft.planet.charAt(0).toUpperCase() + ft.planet.slice(1)} transits ${ft.targetRange.sign} (${ft.targetRange.signLord}/${ft.targetRange.starLord}/${ft.targetRange.subLord}) at ${ft.degree.toFixed(2)}°`,
+      confidence: 'confirmation',
+      source: 'planet-transit',
     });
   }
 
@@ -1538,8 +1724,8 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       }
     }
 
-    // Day lord hard filter: book confirms event date's day-of-week matches a ruling planet
-    // Only apply to transit-based tiers (1-6) to avoid disrupting dasha-only predictions
+    // Day lord HARD filter: book confirms event date's day-of-week must match a ruling planet
+    // Two-pass: first ±3, then ±7 if no match. Constrain to dasha period if available.
     if (best.tier <= 6) {
       const rpDays = new Set();
       for (const rp of rulingPlanets) {
@@ -1548,16 +1734,28 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       const bestDateObj = new Date(best.date);
       const bestDayOfWeek = bestDateObj.getUTCDay();
       if (rpDays.size > 0 && !rpDays.has(bestDayOfWeek)) {
-        // Search ±3 days for the nearest date with matching day lord
+        // Find dasha period boundaries for constraint
+        const bestTdiForDay = transitDashaIntersections.find(t => t.date === best.date);
+        const periodStart = bestTdiForDay ? new Date(bestTdiForDay.period.startDate) : null;
+        const periodEnd = bestTdiForDay ? new Date(bestTdiForDay.period.endDate) : null;
+
         let bestShift = null;
-        for (let shift = -3; shift <= 3; shift++) {
-          if (shift === 0) continue;
-          const shiftedDate = new Date(bestDateObj.getTime() + shift * 86400000);
-          if (shiftedDate < minLeadDate) continue;
-          const shiftedDay = shiftedDate.getUTCDay();
-          if (rpDays.has(shiftedDay)) {
-            if (!bestShift || Math.abs(shift) < Math.abs(bestShift)) {
-              bestShift = shift;
+        // Two-pass: ±3 first, then ±7
+        for (const maxShift of [3, 7]) {
+          if (bestShift !== null) break;
+          for (let shift = -maxShift; shift <= maxShift; shift++) {
+            if (shift === 0) continue;
+            if (maxShift === 7 && Math.abs(shift) <= 3) continue; // Already checked
+            const shiftedDate = new Date(bestDateObj.getTime() + shift * 86400000);
+            if (shiftedDate < minLeadDate) continue;
+            // Constrain to dasha period if available
+            if (periodStart && shiftedDate < periodStart) continue;
+            if (periodEnd && shiftedDate > periodEnd) continue;
+            const shiftedDay = shiftedDate.getUTCDay();
+            if (rpDays.has(shiftedDay)) {
+              if (!bestShift || Math.abs(shift) < Math.abs(bestShift)) {
+                bestShift = shift;
+              }
             }
           }
         }
@@ -1574,18 +1772,56 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       }
     }
 
-    // Retrograde annotation: flag when bhukti/anthra lord is retrograde at judgment time
+    // Retrograde delay: when bhukti/anthra lord is retrograde at judgment,
+    // shift prediction to their direct station date (book: "retro planets give results when direct")
     let retrogradeNote = null;
     const bestTdiForRetro = transitDashaIntersections.find(t => t.date === best.date);
     if (bestTdiForRetro && bestTdiForRetro.period) {
       const retroLords = [];
+      let latestDirectDate = null;
+      let latestDirectDateStr = null;
       for (const lord of [bestTdiForRetro.period.bhukti, bestTdiForRetro.period.anthra]) {
-        if (lord && planets[lord] && planets[lord].retrograde) {
+        if (lord && planets[lord] && planets[lord].isRetrograde) {
           retroLords.push(lord);
+          const directStation = findDirectStationDate(lord, jd);
+          if (directStation) {
+            const directMs = new Date(directStation.date).getTime();
+            if (!latestDirectDate || directMs > latestDirectDate) {
+              latestDirectDate = directMs;
+              latestDirectDateStr = directStation.date;
+            }
+          }
         }
       }
       if (retroLords.length > 0) {
-        retrogradeNote = `${retroLords.join(', ')} retrograde at judgment — event may be delayed until direct station`;
+        const bestMs = new Date(best.date).getTime();
+        if (latestDirectDate && latestDirectDate > bestMs) {
+          // Shift prediction to direct station date
+          const directDateObj = new Date(latestDirectDateStr);
+          const directDow = directDateObj.getUTCDay();
+          retrogradeNote = `${retroLords.join(', ')} retrograde at judgment — delayed to direct station ${latestDirectDateStr}`;
+          best = {
+            ...best,
+            date: latestDirectDateStr,
+            dayName: DAY_LORDS[directDow].en,
+            method: best.method + '-retro-delay',
+            description: best.description + ` [retro delay: ${retroLords.join('+')} direct ${latestDirectDateStr}]`,
+          };
+        } else {
+          retrogradeNote = `${retroLords.join(', ')} retrograde at judgment — goes direct before predicted date`;
+        }
+      }
+    }
+
+    // Lagna transit: find the time when the predicted degree rises on the ascendant
+    let predictedTime = null;
+    if (latitude && longitude) {
+      const bestTdiForLagna = transitDashaIntersections.find(t => t.date === best.date) ||
+        transitDashaIntersections.find(t => t.sunTransitTarget);
+      const targetRange = bestTdiForLagna?.sunTransitTarget || sunTransit?.targetRange;
+      if (targetRange) {
+        const midDeg = (targetRange.startDeg + targetRange.endDeg) / 2;
+        predictedTime = findLagnaRisingTime(midDeg, best.date, latitude, longitude);
       }
     }
 
@@ -1597,6 +1833,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       method: best.method,
       description: best.description,
       retrogradeNote: retrogradeNote || undefined,
+      predictedTime: predictedTime || undefined,
     };
   }
 
@@ -1642,6 +1879,12 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     prominentDates: prominentDates.slice(0, 25),
     jupiterTransit,
     saturnTransit,
+    fastPlanetTransits: allFastTransits.slice(0, 9).map(ft => ({
+      planet: ft.planet,
+      date: ft.date,
+      degree: ft.degree,
+      sign: ft.targetRange.sign,
+    })),
     dashaTiming,
   };
 }

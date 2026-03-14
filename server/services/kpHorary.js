@@ -71,7 +71,9 @@ function calculateKPHorary(horaryNumber, date, latitude, longitude, questionCate
     date,
     houses,
     dashaBalance,
-    (rulingPlanets.rejected || []).map(r => r.planet)
+    (rulingPlanets.rejected || []).map(r => r.planet),
+    latitude,
+    longitude
   );
 
   // Build planet details with house placement, nakshatra, sub-lord
@@ -190,7 +192,9 @@ function calculateKPMomentChart(date, latitude, longitude, questionCategory) {
     date,
     houses,
     dashaBalance,
-    (rulingPlanets.rejected || []).map(r => r.planet)
+    (rulingPlanets.rejected || []).map(r => r.planet),
+    latitude,
+    longitude
   );
 
   // Build planet details
