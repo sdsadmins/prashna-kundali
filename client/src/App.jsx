@@ -128,7 +128,7 @@ function AppContent() {
       </div>
 
       {/* Version footer */}
-      <div className="fixed bottom-0 left-0 right-0 text-center text-white/10 text-[10px] py-1 z-50 pointer-events-none">
+      <div className="fixed bottom-0 left-0 right-0 text-center text-white/30 text-xs py-1 z-50 pointer-events-none">
         v{__BUILD_ID__}
       </div>
 
