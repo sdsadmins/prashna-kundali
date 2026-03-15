@@ -47,14 +47,16 @@ module.exports = async (req, res) => {
         ...kpResult,
       };
       // Save to DB before responding (Vercel kills background work after res.end())
+      let saved = false;
       try {
         await initDb();
         const { success: s, ...dataToStore } = responseData;
         await saveCalculation(dataToStore);
+        saved = true;
       } catch (dbError) {
-        console.error('DB save error (non-fatal):', dbError.message);
+        console.error('DB save error (KP):', dbError.message, dbError.stack);
       }
-      return res.status(200).json(responseData);
+      return res.status(200).json({ ...responseData, saved });
     }
 
     // ── Ank Shastra mode (default) ──────────────────────────
@@ -152,15 +154,17 @@ module.exports = async (req, res) => {
     };
 
     // Save to database (initDb is cached after first call, so fast on warm starts)
+    let saved = false;
     try {
       await initDb();
       const { success, ...dataToStore } = responseData;
       await saveCalculation(dataToStore);
+      saved = true;
     } catch (dbError) {
-      console.error('DB save error (non-fatal):', dbError.message);
+      console.error('DB save error (Ank):', dbError.message, dbError.stack);
     }
 
-    res.status(200).json(responseData);
+    res.status(200).json({ ...responseData, saved });
   } catch (error) {
     console.error('Calculation error:', error);
     res.status(500).json({ error: error.message });

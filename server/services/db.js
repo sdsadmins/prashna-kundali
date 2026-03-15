@@ -13,7 +13,7 @@ function getDb() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  sql = neon(uri);
+  sql = neon(uri, { fetchOptions: { signal: AbortSignal.timeout(8000) } });
   return sql;
 }
 
