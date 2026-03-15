@@ -1875,8 +1875,15 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     }
 
     function getBand(candidate) {
-      // Tier 0 (dasha-first): always Band A — book methodology drives selection
-      if (candidate.tier === 0) return 0;
+      // Tier 0 (dasha-first): Band A only if within 2 years.
+      // Beyond 2 years, use normal distance-based banding — prevents far-future dasha-first
+      // from overriding strong near-term transit-dasha matches (e.g. Bangalore horary #45).
+      if (candidate.tier === 0) {
+        const daysOut = (new Date(candidate.date).getTime() - judgMs) / 86400000;
+        if (daysOut <= 730) return 0;  // Band A if within ~2 years
+        if (daysOut <= 365 * 5) return 1;  // Band B if 2-5 years
+        return 2;  // Band C if 5+ years
+      }
 
       const dateMs = new Date(candidate.date).getTime();
       const daysOut = (dateMs - judgMs) / 86400000;
