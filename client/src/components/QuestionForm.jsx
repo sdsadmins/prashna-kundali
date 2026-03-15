@@ -55,6 +55,7 @@ const QUESTION_CATEGORY_GROUPS = [
   { group: { en: 'Other', mr: 'इतर' }, items: [
     { key: 'lost_item', en: 'Lost Item', mr: 'हरवलेली वस्तू', hint: { en: 'Will I find it?', mr: 'सापडेल का?' } },
     { key: 'war', en: 'War / Conflict', mr: 'युद्ध / संघर्ष', hint: { en: 'Will war/conflict end?', mr: 'युद्ध संपेल?' } },
+    { key: 'seva', en: 'Seva / Spiritual Service', mr: 'सेवा / आध्यात्मिक सेवा', hint: { en: 'Guru seva, dharma work?', mr: 'गुरु सेवा, धर्म कार्य?' } },
     { key: 'general', en: 'General', mr: 'सामान्य', hint: { en: 'Any yes/no question', mr: 'कोणताही प्रश्न' } },
   ]},
 ];
@@ -259,6 +260,12 @@ const CATEGORY_KEYWORDS = {
     'iran', 'israel', 'russia', 'ukraine', 'pakistan', 'china',
     'युद्ध', 'संघर्ष', 'लढाई', 'हमला', 'शांती', 'जंग', 'हल्ला',
   ],
+  seva: [
+    'seva', 'service to guru', 'gurudev', 'guru seva', 'spiritual service',
+    'ashram', 'dharma', 'dharma work', 'devotion', 'devotee', 'disciple',
+    'secretary', 'personal secretary', 'serve guru', 'divine service',
+    'सेवा', 'गुरुदेव', 'गुरु सेवा', 'आश्रम', 'धर्म', 'भक्ती', 'शिष्य',
+  ],
 };
 
 // Priority order for auto-detection: specific before general
@@ -267,7 +274,7 @@ const DETECT_PRIORITY = [
   'loan_repayment', 'debt_recovery', 'government_benefit', 'travel_safety',
   'missing_person', 'lost_item',
   'divorce', 'reconciliation', 'surgery', 'cure', 'pregnancy',
-  'marriage', 'job', 'promotion', 'transfer', 'reinstatement',
+  'seva', 'marriage', 'job', 'promotion', 'transfer', 'reinstatement',
   'finance', 'borrowing', 'inheritance', 'lottery', 'prosperity',
   'education', 'scholarship',
   'health', 'children', 'property', 'vehicle',

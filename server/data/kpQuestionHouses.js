@@ -87,6 +87,8 @@ const KP_QUESTION_HOUSES = {
   travel_safety:   { favorable: [3, 9, 11],     unfavorable: [8, 12],        primaryCusp: 9 },
   // War/conflict resolution: 7th=open enemies, 11th=desire fulfilment, 9th=peace/dharma
   war:             { favorable: [7, 9, 11],      unfavorable: [6, 8, 12],     primaryCusp: 7 },
+  // Seva/spiritual service: 9th cusp = guru/dharma. Houses 5(devotion),9(guru),11(fulfillment) favorable
+  seva:            { favorable: [5, 9, 11],     unfavorable: [8, 12],        primaryCusp: 9 },
   general:         { favorable: [1, 9, 11],     unfavorable: [6, 8, 12],     primaryCusp: 11 },
 };
 
