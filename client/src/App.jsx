@@ -25,12 +25,16 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [formMode, setFormMode] = useState('ank');
+  const [showLocationInput, setShowLocationInput] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
+  const [citySearching, setCitySearching] = useState(false);
 
   // Get geolocation on mount
   useEffect(() => {
     getCurrentPosition()
       .then((loc) => {
         setLocation(loc);
+        setLocationError(false);
         getLocationName(loc.latitude, loc.longitude).then(setLocationName);
       })
       .catch(() => {
@@ -39,6 +43,40 @@ function AppContent() {
         setLocationName(lang === 'mr' ? 'पुणे' : 'Pune');
       });
   }, []);
+
+  const retryGeolocation = () => {
+    getCurrentPosition()
+      .then((loc) => {
+        setLocation(loc);
+        setLocationError(false);
+        setShowLocationInput(false);
+        getLocationName(loc.latitude, loc.longitude).then(setLocationName);
+      })
+      .catch(() => {
+        setLocationError(true);
+      });
+  };
+
+  const searchCity = async () => {
+    if (!citySearch.trim()) return;
+    setCitySearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(citySearch.trim())}&format=json&limit=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await res.json();
+      if (data.length > 0) {
+        const loc = { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
+        setLocation(loc);
+        setLocationError(false);
+        setShowLocationInput(false);
+        setCitySearch('');
+        setLocationName(data[0].display_name.split(',')[0]);
+      }
+    } catch { /* ignore */ }
+    finally { setCitySearching(false); }
+  };
 
   const handleCalculate = async ({ question, options, optionsCount, mode, horaryNumber, questionCategory, kpQuestionType }) => {
     if (!location) return;
@@ -98,16 +136,54 @@ function AppContent() {
             <p className="text-white/40 text-sm mt-1">{t('appSubtitle')}</p>
           </div>
           <div className="flex items-center gap-4">
-            {location && (
-              <span className="text-xs text-emerald-400/60 flex items-center gap-1">
+            <div className="relative">
+              <button
+                onClick={() => setShowLocationInput(!showLocationInput)}
+                className={`text-xs flex items-center gap-1 cursor-pointer transition-colors ${
+                  locationError ? 'text-amber-400/70 hover:text-amber-400' : 'text-emerald-400/60 hover:text-emerald-400'
+                }`}
+                title={location ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : ''}
+              >
                 <span>&#9679;</span>
                 {locationError
                   ? lang === 'mr' ? 'पुणे (डीफॉल्ट)' : 'Pune (default)'
-                  : locationName
-                    ? locationName
-                    : t('locationDetected')}
-              </span>
-            )}
+                  : locationName || t('locationDetected')}
+                <span className="text-white/20 ml-0.5">&#9998;</span>
+              </button>
+              {showLocationInput && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-black/90 border border-white/10 rounded-lg p-3 shadow-xl z-50">
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && searchCity()}
+                      placeholder={lang === 'mr' ? 'शहर शोधा...' : 'Search city...'}
+                      className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-white text-xs focus:border-gold/50 focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={searchCity}
+                      disabled={citySearching}
+                      className="px-2 py-1.5 bg-gold/20 border border-gold/30 rounded text-gold text-xs cursor-pointer hover:bg-gold/30 disabled:opacity-50"
+                    >
+                      {citySearching ? '...' : '&#8594;'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={retryGeolocation}
+                    className="w-full text-xs text-emerald-400/60 hover:text-emerald-400 cursor-pointer py-1 transition-colors"
+                  >
+                    &#8853; {lang === 'mr' ? 'स्वयं शोध पुन्हा करा' : 'Retry auto-detect'}
+                  </button>
+                  {location && (
+                    <div className="text-white/20 text-[10px] text-center mt-1">
+                      {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <LanguageToggle />
             <Link
               to="/admin"
