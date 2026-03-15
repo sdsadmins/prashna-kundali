@@ -127,6 +127,11 @@ function AppContent() {
         <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full bg-saffron/5 blur-[100px]" />
       </div>
 
+      {/* Version footer */}
+      <div className="fixed bottom-0 left-0 right-0 text-center text-white/10 text-[10px] py-1 z-50 pointer-events-none">
+        v{__BUILD_HASH__}
+      </div>
+
       {/* Main content */}
       <div className="relative z-10">
         {/* Header */}
