@@ -3,14 +3,20 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { execSync } from 'child_process'
 
-const commitHash = execSync('git rev-parse --short HEAD').toString().trim()
-const buildTime = new Date().toISOString()
+let commitHash = process.env.VERCEL_GIT_COMMIT_SHA
+  ? process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7)
+  : 'dev'
+
+try {
+  commitHash = execSync('git rev-parse --short HEAD').toString().trim()
+} catch {
+  // git not available (e.g. Vercel build), use env var above
+}
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
     __BUILD_HASH__: JSON.stringify(commitHash),
-    __BUILD_TIME__: JSON.stringify(buildTime),
   },
   server: {
     port: 5173,
