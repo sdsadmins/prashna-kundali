@@ -39,8 +39,7 @@ function AppContent() {
       })
       .catch(() => {
         setLocationError(true);
-        setLocation({ latitude: 18.5204, longitude: 73.8567 });
-        setLocationName(lang === 'mr' ? 'पुणे' : 'Pune');
+        // No default fallback — user must provide location
       });
   }, []);
 
@@ -79,7 +78,10 @@ function AppContent() {
   };
 
   const handleCalculate = async ({ question, options, optionsCount, mode, horaryNumber, questionCategory, kpQuestionType }) => {
-    if (!location) return;
+    if (!location) {
+      setShowLocationInput(true);
+      return;
+    }
     setIsLoading(true);
     setResult(null);
 
@@ -140,13 +142,14 @@ function AppContent() {
               <button
                 onClick={() => setShowLocationInput(!showLocationInput)}
                 className={`text-xs flex items-center gap-1 cursor-pointer transition-colors ${
+                  !location ? 'text-red-400 hover:text-red-300 animate-pulse' :
                   locationError ? 'text-amber-400/70 hover:text-amber-400' : 'text-emerald-400/60 hover:text-emerald-400'
                 }`}
                 title={location ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` : ''}
               >
                 <span>&#9679;</span>
-                {locationError
-                  ? lang === 'mr' ? 'पुणे (डीफॉल्ट)' : 'Pune (default)'
+                {!location
+                  ? lang === 'mr' ? 'स्थान सेट करा' : 'Set location'
                   : locationName || t('locationDetected')}
                 <span className="text-white/20 ml-0.5">&#9998;</span>
               </button>
@@ -181,6 +184,13 @@ function AppContent() {
                       {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
                     </div>
                   )}
+                  {locationError && (
+                    <div className="text-red-400/80 text-[10px] mt-2 leading-tight">
+                      {lang === 'mr'
+                        ? 'अचूक गणनेसाठी तुमचे स्थान आवश्यक आहे. कृपया शहर शोधा.'
+                        : 'Your location is required for accurate calculation. Please search your city.'}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -195,6 +205,18 @@ function AppContent() {
             </Link>
           </div>
         </header>
+
+        {/* Location warning banner */}
+        {!location && (
+          <div
+            onClick={() => setShowLocationInput(true)}
+            className="mx-4 mb-2 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center cursor-pointer hover:bg-red-500/15 transition-colors animate-pulse"
+          >
+            {lang === 'mr'
+              ? 'अचूक गणनेसाठी तुमचे स्थान आवश्यक आहे. कृपया वरील बटणावर क्लिक करून शहर टाका.'
+              : 'Your location is required for accurate calculation. Click here or the location button above to set your city.'}
+          </div>
+        )}
 
         {/* Before results: centered form */}
         {!result && (
