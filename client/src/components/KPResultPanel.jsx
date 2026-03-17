@@ -94,7 +94,7 @@ export default function KPResultPanel({ result }) {
 
   if (!result || result.mode !== 'kp') return null;
 
-  const { yesNo, subEntry, rulingPlanets, dashaBalance, timing, significators, planets, houses, question, kpQuestionType } = result;
+  const { yesNo, subEntry, rulingPlanets, dashaBalance, timing, significators, planets, houses, question, kpQuestionType, eventType } = result;
   const v = VERDICT_STYLES[yesNo.verdict] || VERDICT_STYLES.NO;
   const isYes = yesNo.verdict === 'YES' || yesNo.verdict === 'YES_WITH_DELAY';
   const prediction = isYes ? getPredictedDate(timing) : null;
@@ -179,10 +179,29 @@ export default function KPResultPanel({ result }) {
           {/* Big timing hero */}
           {predictedDate ? (
             <div className="text-center">
+              {/* For period-type questions: show favorable period first */}
+              {eventType === 'period' && timing?.transitDashaIntersections?.[0]?.period && (() => {
+                const topPeriod = timing.transitDashaIntersections[0].period;
+                return (
+                  <div className="mb-4 pb-3 border-b border-white/10">
+                    <div className="text-white/50 text-xs mb-1">
+                      {lang === 'mr' ? 'अनुकूल काळ' : 'Favorable Period'}
+                    </div>
+                    <div className="text-xl font-bold text-emerald-400">
+                      {formatDate(topPeriod.startDate, lang)} — {formatDate(topPeriod.endDate, lang)}
+                    </div>
+                    <div className="text-white/40 text-[10px] mt-1">
+                      {lang === 'mr' ? 'दशा' : 'Dasha'}: {pName(topPeriod.mahaDasha, lang)}-{pName(topPeriod.bhukti, lang)}-{pName(topPeriod.anthra, lang)}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="text-white/50 text-xs mb-1">
-                {lang === 'mr' ? 'अंदाजित तारीख' : 'Predicted Date'}
+                {eventType === 'period'
+                  ? (lang === 'mr' ? 'महत्त्वाचा वळणबिंदू' : 'Key Turning Point')
+                  : (lang === 'mr' ? 'अंदाजित तारीख' : 'Predicted Date')}
               </div>
-              <div className="text-3xl font-bold text-white">
+              <div className={`${eventType === 'period' ? 'text-2xl' : 'text-3xl'} font-bold text-white`}>
                 {formatDate(predictedDate, lang)}
                 {prediction?.dayName && <span className="text-xl text-white/60 ml-2">({prediction.dayName})</span>}
               </div>

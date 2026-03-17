@@ -13,6 +13,7 @@ const { calculateKPRulingPlanets } = require('./kpRulingPlanets');
 const { analyzeYesNo, getSubLordQuality } = require('./kpYesNo');
 const { calculateDashaBalance } = require('./kpDasha');
 const { calculateEventTiming } = require('./kpTiming');
+const { getQuestionHouses } = require('../data/kpQuestionHouses');
 const { getSubByDegree, formatDMS } = require('../data/kpSubTable');
 const { getNakshatraFromDegree } = require('./nakshatra');
 const { SIGNS } = require('../data/constants');
@@ -129,6 +130,7 @@ function calculateKPHorary(horaryNumber, date, latitude, longitude, questionCate
     dashaBalance,
     timing,
     questionCategory,
+    eventType: getQuestionHouses(questionCategory).eventType || 'event',
     ayanamsa,
     julianDay: jd,
     date: date.toISOString(),
@@ -250,6 +252,7 @@ function calculateKPMomentChart(date, latitude, longitude, questionCategory) {
     dashaBalance,
     timing,
     questionCategory,
+    eventType: getQuestionHouses(questionCategory).eventType || 'event',
     ayanamsa,
     julianDay: jd,
     date: date.toISOString(),
