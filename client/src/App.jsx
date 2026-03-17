@@ -143,6 +143,14 @@ function AppContent() {
             <p className="text-white/40 text-sm mt-1">{t('appSubtitle')}</p>
           </div>
           <div className="flex items-center gap-4">
+            {result && (
+              <button
+                onClick={() => setResult(null)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gold/30 text-gold/70 hover:text-gold hover:border-gold/50 transition-all cursor-pointer"
+              >
+                {lang === 'mr' ? '← नवीन प्रश्न' : '← New Question'}
+              </button>
+            )}
             <div className="relative">
               <button
                 onClick={() => setShowLocationInput(!showLocationInput)}

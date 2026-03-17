@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n/useI18n';
 import KundaliChart3D from '../components/KundaliChart3D';
@@ -141,7 +141,7 @@ function CalcDetail({ calc, onBack }) {
   );
 }
 
-function Dashboard({ token, onLogout }) {
+function Dashboard({ token, onLogout, onDetailChange, clearDetailRef }) {
   const { lang } = useI18n();
   const [calculations, setCalculations] = useState([]);
   const [total, setTotal] = useState(0);
@@ -217,6 +217,15 @@ function Dashboard({ token, onLogout }) {
       setDetailLoading(false);
     }
   };
+
+  // Sync detail view state with parent and expose clear function
+  useEffect(() => {
+    onDetailChange?.(!!selectedCalc);
+  }, [selectedCalc, onDetailChange]);
+
+  useEffect(() => {
+    if (clearDetailRef) clearDetailRef.current = () => setSelectedCalc(null);
+  }, [clearDetailRef]);
 
   if (selectedCalc) {
     // Merge Postgres columns: top-level fields + data JSONB column
@@ -398,6 +407,8 @@ function Dashboard({ token, onLogout }) {
 
 export default function AdminPage() {
   const [token, setToken] = useState(() => localStorage.getItem('admin_token'));
+  const [viewingDetail, setViewingDetail] = useState(false);
+  const clearDetailRef = useRef(null);
   const { lang } = useI18n();
 
   const handleLogout = () => {
@@ -433,6 +444,20 @@ export default function AdminPage() {
             </h1>
           </div>
           <div className="flex items-center gap-4">
+            {viewingDetail && (
+              <button
+                onClick={() => clearDetailRef.current?.()}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gold/30 text-gold/70 hover:text-gold hover:border-gold/50 transition-all cursor-pointer"
+              >
+                {lang === 'mr' ? '← यादीवर परत' : '← Back to list'}
+              </button>
+            )}
+            <Link
+              to="/"
+              className="text-xs px-3 py-1.5 rounded-lg border border-purple-500/30 text-purple-300/70 hover:text-purple-300 hover:border-purple-500/50 transition-all"
+            >
+              {lang === 'mr' ? '+ नवीन प्रश्न' : '+ New Question'}
+            </Link>
             <LanguageToggle />
             <button
               onClick={handleLogout}
@@ -445,7 +470,7 @@ export default function AdminPage() {
 
         {/* Content */}
         <div className="max-w-6xl mx-auto px-4 py-6">
-          <Dashboard token={token} onLogout={handleLogout} />
+          <Dashboard token={token} onLogout={handleLogout} onDetailChange={setViewingDetail} clearDetailRef={clearDetailRef} />
         </div>
       </div>
     </div>
