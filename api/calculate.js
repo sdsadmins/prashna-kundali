@@ -47,10 +47,36 @@ module.exports = async (req, res) => {
         ...kpResult,
       };
       // Save to DB before responding (Vercel kills background work after res.end())
+      // Aggressively strip debug/display-only fields to keep DB payload small (~5KB)
       let saved = false;
       try {
         await initDb();
         const { success: s, ...dataToStore } = responseData;
+        // Strip large timing sub-fields (kept in response for client display)
+        if (dataToStore.timing) {
+          const { targetPositions, moonTransitAll, nearTermMoon, sunTransitAll,
+                  dashaTiming, prominentDates, fastPlanetTransits,
+                  transitDashaIntersections, ...lightTiming } = dataToStore.timing;
+          dataToStore.timing = lightTiming;
+        }
+        // Strip dashaBalance anthras (81 objects, ~15-25KB) — keep only bhukti summaries
+        if (dataToStore.dashaBalance?.bhuktis) {
+          dataToStore.dashaBalance = {
+            ...dataToStore.dashaBalance,
+            bhuktis: dataToStore.dashaBalance.bhuktis.map(b => {
+              const { anthras, ...rest } = b;
+              return rest;
+            }),
+          };
+        }
+        // Strip full significator detail — keep just the house-level summary
+        if (dataToStore.significators) {
+          const sigSummary = {};
+          for (const [house, sig] of Object.entries(dataToStore.significators)) {
+            sigSummary[house] = { lord: sig.lord };
+          }
+          dataToStore.significators = sigSummary;
+        }
         await saveCalculation(dataToStore);
         saved = true;
       } catch (dbError) {
