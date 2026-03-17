@@ -469,14 +469,32 @@ export default function KPResultPanel({ result }) {
               </button>
               {expanded.prominent && (
                 <div className="mt-2 space-y-1.5">
-                  {timing.prominentDates.map((pd, i) => (
-                    <div key={i} className="flex justify-between items-start gap-2 text-xs">
-                      <div className="text-white/40 flex-1 truncate" title={pd.description}>{pd.description}</div>
-                      <div className={`font-medium whitespace-nowrap ${pd.source === 'dasha' ? 'text-purple-400' : pd.confidence === 'high' ? 'text-emerald-400' : pd.confidence === 'medium' ? 'text-yellow-400' : 'text-white/70'}`}>
-                        {formatDateShort(pd.date, lang)}
-                      </div>
-                    </div>
-                  ))}
+                  {(() => {
+                    const sorted = [...timing.prominentDates].sort((a, b) => (b.score || 0) - (a.score || 0));
+                    const maxScore = Math.max(...sorted.filter(pd => pd.score).map(pd => pd.score), 1);
+                    return sorted.map((pd, i) => {
+                      const pct = pd.score ? Math.round((pd.score / maxScore) * 100) : null;
+                      const barColor = pd.source === 'transit-dasha' ? 'bg-emerald-500/20' : pd.source === 'dasha' ? 'bg-purple-500/20' : 'bg-amber-500/20';
+                      return (
+                        <div key={i} className="relative rounded overflow-hidden">
+                          {pct !== null && <div className={`absolute inset-0 ${barColor}`} style={{ width: `${pct}%` }} />}
+                          <div className="relative flex justify-between items-center gap-2 text-xs px-2 py-1">
+                            <div className="text-white/40 flex-1 truncate" title={pd.description}>{pd.description}</div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {pct !== null && (
+                                <span className={`text-[10px] font-medium ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-yellow-400' : 'text-white/30'}`}>
+                                  {pct}%
+                                </span>
+                              )}
+                              <div className={`font-medium whitespace-nowrap ${pd.source === 'dasha' ? 'text-purple-400' : pd.confidence === 'high' ? 'text-emerald-400' : pd.confidence === 'medium' ? 'text-yellow-400' : 'text-white/70'}`}>
+                                {formatDateShort(pd.date, lang)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>
