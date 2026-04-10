@@ -107,6 +107,22 @@ function analyzeYesNo(questionCategory, houses, planets, significators) {
   const subLord = cuspSub.subLord;
   reasoning.push('Cusp ' + primaryCusp + ' at ' + cuspDegree.toFixed(2) + '° → sub-lord: ' + subLord);
 
+  // ── Borderline cusp check: warn if within 10 arcminutes of sub boundary ──
+  const BORDERLINE_THRESHOLD = 10 / 60; // 10 arcminutes in degrees
+  const distToStart = Math.abs(cuspDegree - cuspSub.startDeg);
+  const distToEnd = Math.abs(cuspSub.endDeg - cuspDegree);
+  const minBoundaryDist = Math.min(distToStart, distToEnd);
+  if (minBoundaryDist < BORDERLINE_THRESHOLD) {
+    const nearestBoundary = distToStart < distToEnd ? 'start' : 'end';
+    const arcmin = (minBoundaryDist * 60).toFixed(1);
+    reasoning._borderlineWarning = {
+      distArcmin: parseFloat(arcmin),
+      boundary: nearestBoundary === 'start' ? cuspSub.startDeg : cuspSub.endDeg,
+      currentSubLord: subLord,
+    };
+    reasoning.push(`WARNING: Cusp ${primaryCusp} is only ${arcmin}' from sub boundary — verdict may be sensitive to cusp precision`);
+  }
+
   if (!planets[subLord]) {
     return { verdict: 'NO', primaryCusp, subLord, reasoning: ['Sub-lord not found'], houseMapping };
   }
@@ -286,7 +302,7 @@ function analyzeYesNo(questionCategory, houses, planets, significators) {
 
 function mkResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLordNak,
   constellationLord, subScore, constScore, reasoning, houseMapping) {
-  return {
+  const result = {
     verdict,
     primaryCusp,
     cuspDegree,
@@ -299,9 +315,13 @@ function mkResult(verdict, primaryCusp, cuspDegree, subLord, subLordDeg, subLord
     unfavHouses: subScore.unfavHouses || [],
     favScore: (subScore.favScore || 0) + (constScore.favScore || 0),
     unfavScore: (subScore.unfavScore || 0) + (constScore.unfavScore || 0),
-    reasoning,
+    reasoning: [...reasoning], // clean copy without custom properties
     houseMapping,
   };
+  if (reasoning._borderlineWarning) {
+    result.borderlineWarning = reasoning._borderlineWarning;
+  }
+  return result;
 }
 
 /**

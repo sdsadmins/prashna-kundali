@@ -96,6 +96,7 @@ export default function KPResultPanel({ result }) {
 
   const { yesNo, subEntry, rulingPlanets, dashaBalance, timing, significators, planets, houses, question, kpQuestionType, eventType } = result;
   const v = VERDICT_STYLES[yesNo.verdict] || VERDICT_STYLES.NO;
+  const borderline = yesNo.borderlineWarning;
   const isYes = yesNo.verdict === 'YES' || yesNo.verdict === 'YES_WITH_DELAY';
   const prediction = isYes ? getPredictedDate(timing) : null;
   const predictedDate = prediction?.date || null;
@@ -176,6 +177,19 @@ export default function KPResultPanel({ result }) {
             </span>
             <span className="text-white/30 text-xs">{lang === 'mr' ? 'केपी होरारी निर्णय' : 'KP Horary Verdict'}<HowItWorksTooltip lang={lang} /></span>
           </div>
+          {/* Borderline cusp warning */}
+          {borderline && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
+              <span className="text-yellow-400 text-[10px] font-medium">
+                {lang === 'mr' ? '⚠ सीमावर्ती उप-स्वामी' : '⚠ Borderline Sub Lord'}
+              </span>
+              <span className="text-white/40 text-[10px] ml-1">
+                — {lang === 'mr'
+                  ? `कुस्प ${yesNo.primaryCusp} सीमेपासून ${borderline.distArcmin}'`
+                  : `Cusp ${yesNo.primaryCusp} is ${borderline.distArcmin}' from boundary`}
+              </span>
+            </div>
+          )}
           {/* Big timing hero */}
           {predictedDate ? (
             <div className="text-center">
@@ -255,6 +269,18 @@ export default function KPResultPanel({ result }) {
               ? 'उप-स्वामी विश्लेषणानुसार ही घटना घडणार नाही — काल निर्धारण लागू नाही'
               : 'Sub-lord analysis indicates this will not materialize — timing not applicable'}
           </div>
+          {borderline && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
+              <span className="text-yellow-400 text-[10px] font-medium">
+                {lang === 'mr' ? '⚠ सीमावर्ती उप-स्वामी' : '⚠ Borderline Sub Lord'}
+              </span>
+              <span className="text-white/40 text-[10px] ml-1">
+                — {lang === 'mr'
+                  ? `कुस्प ${yesNo.primaryCusp} सीमेपासून ${borderline.distArcmin}' — भिन्न सॉफ्टवेअर वेगळा निर्णय देऊ शकतात`
+                  : `Cusp ${yesNo.primaryCusp} is ${borderline.distArcmin}' from boundary — different software may give a different verdict`}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -278,6 +304,20 @@ export default function KPResultPanel({ result }) {
               <HowItWorksTooltip lang={lang} />
             </div>
           </div>
+
+          {/* Borderline cusp warning */}
+          {borderline && (
+            <div className="mt-3 mx-auto max-w-sm px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
+              <div className="text-yellow-400 text-xs font-medium mb-0.5">
+                {lang === 'mr' ? '⚠ सीमावर्ती उप-स्वामी' : '⚠ Borderline Sub Lord'}
+              </div>
+              <div className="text-white/50 text-[10px] leading-relaxed">
+                {lang === 'mr'
+                  ? `कुस्प ${yesNo.primaryCusp} उप-सीमेपासून फक्त ${borderline.distArcmin}' अंतरावर आहे — भिन्न सॉफ्टवेअर वेगळा निर्णय देऊ शकतात`
+                  : `Cusp ${yesNo.primaryCusp} is only ${borderline.distArcmin}' from sub boundary — different software may give a different verdict`}
+              </div>
+            </div>
+          )}
 
           {/* Predicted Date — prominently shown for YES verdicts */}
           {isYes && predictedDate && (
