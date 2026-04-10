@@ -521,7 +521,7 @@ export default function KPResultPanel({ result }) {
 
           {/* Fruitful Significators footer */}
           <div className="mt-3 pt-2 border-t border-white/10 text-xs text-white/40">
-            {lang === 'mr' ? 'फलदायी कारक:' : 'Fruitful Significators:'} {timing.fruitfulSignificators.map(p => pName(p, lang)).join(', ')}
+            {lang === 'mr' ? 'फलदायी कारक:' : 'Fruitful Significators:'} {timing.fruitfulSignificators?.map(p => pName(p, lang)).join(', ') || '-'}
             {timing.targetPositionCount !== undefined && (
               <span className="ml-2">({timing.targetPositionCount} {lang === 'mr' ? 'लक्ष्य स्थाने' : 'target positions'})</span>
             )}
@@ -641,10 +641,10 @@ export default function KPResultPanel({ result }) {
                 {Object.entries(significators).map(([h, levels]) => (
                   <tr key={h} className="border-b border-white/5">
                     <td className="py-1 pr-2 text-gold/70 font-medium">{h}</td>
-                    <td className="py-1 pr-2 text-white/70">{levels.A.map(p => pName(p, lang)).join(', ') || '-'}</td>
-                    <td className="py-1 pr-2 text-white/70">{levels.B.map(p => pName(p, lang)).join(', ') || '-'}</td>
-                    <td className="py-1 pr-2 text-white/70">{levels.C.map(p => pName(p, lang)).join(', ') || '-'}</td>
-                    <td className="py-1 text-white/70">{levels.D.map(p => pName(p, lang)).join(', ') || '-'}</td>
+                    <td className="py-1 pr-2 text-white/70">{levels.A?.map(p => pName(p, lang)).join(', ') || '-'}</td>
+                    <td className="py-1 pr-2 text-white/70">{levels.B?.map(p => pName(p, lang)).join(', ') || '-'}</td>
+                    <td className="py-1 pr-2 text-white/70">{levels.C?.map(p => pName(p, lang)).join(', ') || '-'}</td>
+                    <td className="py-1 text-white/70">{levels.D?.map(p => pName(p, lang)).join(', ') || '-'}</td>
                   </tr>
                 ))}
               </tbody>
