@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(node tests/test-kp-book.js)",
-      "Bash(node tests/test-kp-timing.js)",
-      "Bash(git commit -m ':*)"
-    ]
-  }
-}
