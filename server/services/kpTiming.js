@@ -16,11 +16,81 @@
  * Reference: K.S. Krishnamurti, "KP Reader VI", Section IV — Timing
  */
 const { calcPlanetPosition, dateToJulianDay, getAyanamsa, calcTropicalAscendant } = require('./ephemeris');
-const { KP_SUB_TABLE } = require('../data/kpSubTable');
+const { KP_SUB_TABLE, getSubByDegree } = require('../data/kpSubTable');
 const { SIGNS, DAY_LORDS, VIMSHOTTARI_ORDER, VIMSHOTTARI_YEARS } = require('../data/constants');
 const { getQuestionHouses } = require('../data/kpQuestionHouses');
 const { getHousesSignifiedByPlanet } = require('./kpSignificators');
 const { calculateSubPeriods } = require('./kpDasha');
+
+// ── Speed of Realization classification (KP Reader VI + lightinlife.home.blog) ──
+// Layer 2: 11th cusp sub lord's inherent speed
+const PLANET_SPEED = {
+  moon: 'fast', mercury: 'fast',
+  sun: 'medium', mars: 'medium', venus: 'medium', rahu: 'medium', ketu: 'medium',
+  jupiter: 'slow', saturn: 'slow',
+};
+// Layer 3: Sign fruitfulness (affects speed of realization)
+const SIGN_FRUITFULNESS = {
+  3: 'fruitful', 7: 'fruitful', 11: 'fruitful',        // Cancer(3), Scorpio(7), Pisces(11)
+  1: 'semi-fruitful', 6: 'semi-fruitful', 8: 'semi-fruitful', 9: 'semi-fruitful', // Taurus(1), Libra(6), Sag(8), Cap(9)
+  0: 'barren', 2: 'barren', 4: 'barren', 5: 'barren',  // Aries(0), Gemini(2), Leo(4), Virgo(5)
+  10: 'semi-fruitful', // Aquarius — not in original list, default to semi-fruitful
+};
+
+/**
+ * Classify the speed of event realization based on 11th cusp analysis.
+ * Returns an object with overall speed and component details.
+ */
+function classifyRealizationSpeed(houses) {
+  const cusp11Deg = houses[10]; // 11th cusp (0-indexed)
+  const sub = getSubByDegree(cusp11Deg);
+  const subLord = sub.subLord;
+  const signIdx = Math.floor(((cusp11Deg % 360) + 360) % 360 / 30);
+  const sign = SIGNS[signIdx];
+
+  const speed = PLANET_SPEED[subLord] || 'medium';
+  const fruitfulness = SIGN_FRUITFULNESS[signIdx] || 'semi-fruitful';
+
+  // Combine: score 0=fastest, higher=slower
+  const speedScore = { fast: 0, medium: 1, slow: 2 }[speed];
+  const fruitScore = { fruitful: 0, 'semi-fruitful': 1, barren: 2 }[fruitfulness];
+  const combined = speedScore + fruitScore; // 0-4
+
+  let overallSpeed, suggestedTransit;
+  if (combined <= 0) {
+    overallSpeed = 'immediate'; suggestedTransit = 'lagna';
+  } else if (combined <= 1) {
+    overallSpeed = 'soon'; suggestedTransit = 'moon';
+  } else if (combined <= 2) {
+    overallSpeed = 'normal'; suggestedTransit = 'sun';
+  } else {
+    overallSpeed = 'delayed'; suggestedTransit = 'jupiter';
+  }
+
+  // Preferred time windows in days [min, max]
+  const windows = {
+    immediate: [0, 7],
+    soon: [7, 90],
+    normal: [90, 365],
+    delayed: [365, 2557],
+  };
+
+  const descriptions = {
+    immediate: { en: 'Event likely within days', mr: 'घटना काही दिवसांत संभाव्य' },
+    soon: { en: 'Event likely within weeks to months', mr: 'घटना आठवडे ते महिन्यांत संभाव्य' },
+    normal: { en: 'Event likely within months', mr: 'घटना महिन्यांत संभाव्य' },
+    delayed: { en: 'Event likely after considerable delay', mr: 'घटना बराच विलंब झाल्यावर संभाव्य' },
+  };
+
+  return {
+    overallSpeed,
+    preferredWindow: windows[overallSpeed],
+    eleventhCuspSubLord: { planet: subLord, speed },
+    eleventhCuspSign: { sign: sign.en, type: fruitfulness },
+    suggestedTransit,
+    description: descriptions[overallSpeed],
+  };
+}
 
 // Map planet name to the day-of-week index (0=Sunday ... 6=Saturday)
 const PLANET_TO_DAY = {};
@@ -1455,6 +1525,9 @@ function dashaFirstSelection(params) {
 function calculateEventTiming(rulingPlanets, significators, planets, questionCategory, judgmentDate, houses, dashaBalance, rejectedPlanets, latitude, longitude) {
   const jd = dateToJulianDay(judgmentDate);
 
+  // Step 0: Classify speed of realization from 11th cusp
+  const realizationSpeed = classifyRealizationSpeed(houses);
+
   // Step 1: Build target positions (sign + star + sub = all ruling planets)
   const targetPositions = findTargetPositions(rulingPlanets, planets, rejectedPlanets);
 
@@ -1908,6 +1981,17 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
       return 2;                       // Band C
     }
 
+    // Speed-of-realization alignment: bonus/penalty based on 11th cusp classification
+    const [speedWindowMin, speedWindowMax] = realizationSpeed.preferredWindow;
+    function getSpeedBonus(candidate) {
+      const daysOut = (new Date(candidate.date).getTime() - judgMs) / 86400000;
+      if (daysOut >= speedWindowMin && daysOut <= speedWindowMax) return 20;  // in preferred window
+      // Adjacent windows get no bonus/penalty
+      const halfRange = (speedWindowMax - speedWindowMin) / 2;
+      if (daysOut >= speedWindowMin - halfRange && daysOut <= speedWindowMax + halfRange) return 0;
+      return -10; // far outside preferred window
+    }
+
     // Effective score: apply proximity decay within Band B to favor earlier dates
     // This prevents far-future high-scoring candidates from always beating nearer valid ones
     function effectiveScore(candidate) {
@@ -1917,6 +2001,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
         const daysOut = (new Date(candidate.date).getTime() - judgMs) / 86400000;
         score -= Math.max(0, (daysOut - 90) / 10);
       }
+      score += getSpeedBonus(candidate);
       return score;
     }
 
@@ -2234,6 +2319,7 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
   }
 
   return {
+    realizationSpeed,
     fruitfulSignificators: commonPlanets.length > 0 ? commonPlanets.map(c => c.planet) : rulingPlanets,
     targetPositions,
     targetPositionCount: targetPositions.length,
@@ -2257,7 +2343,11 @@ function calculateEventTiming(rulingPlanets, significators, planets, questionCat
     moonTransit: moonTransitResults.length > 0 ? moonTransitResults[0] : null,
     moonTransitAll: allMoonTransitResults.slice(0, 10),
     nearTermMoon: nearTermMoon.slice(0, 5),
-    prominentDates: prominentDates.slice(0, 25),
+    prominentDates: prominentDates.slice(0, 25).map(pd => {
+      const daysOut = (new Date(pd.date).getTime() - judgmentDate.getTime()) / 86400000;
+      const [wMin, wMax] = realizationSpeed.preferredWindow;
+      return { ...pd, speedAligned: daysOut >= wMin && daysOut <= wMax };
+    }),
     jupiterTransit,
     saturnTransit,
     fastPlanetTransits: allFastTransits.slice(0, 9).map(ft => ({

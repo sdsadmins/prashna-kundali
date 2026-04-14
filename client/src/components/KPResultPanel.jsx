@@ -370,6 +370,52 @@ export default function KPResultPanel({ result }) {
         </div>
       )}
 
+      {/* Speed of Realization indicator */}
+      {isYes && timing?.realizationSpeed && (() => {
+        const rs = timing.realizationSpeed;
+        const styles = {
+          immediate: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', label: { en: 'Immediate', mr: 'तत्काळ' } },
+          soon:      { bg: 'bg-green-500/10',   border: 'border-green-500/40',   text: 'text-green-400',   label: { en: 'Soon', mr: 'लवकर' } },
+          normal:    { bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   label: { en: 'Normal', mr: 'सामान्य' } },
+          delayed:   { bg: 'bg-orange-500/10',  border: 'border-orange-500/40',  text: 'text-orange-400',  label: { en: 'Delayed', mr: 'विलंबित' } },
+        };
+        const s = styles[rs.overallSpeed] || styles.normal;
+        const fruitLabel = { 'fruitful': { en: 'fruitful', mr: 'फलदायी' }, 'semi-fruitful': { en: 'semi-fruitful', mr: 'अर्ध-फलदायी' }, 'barren': { en: 'barren', mr: 'वांझ' } }[rs.eleventhCuspSign.type];
+        const speedLabel = { fast: { en: 'fast', mr: 'वेगवान' }, medium: { en: 'medium', mr: 'मध्यम' }, slow: { en: 'slow', mr: 'मंद' } }[rs.eleventhCuspSubLord.speed];
+        return (
+          <div className={`card-glass p-3 ${s.bg} border ${s.border}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⏱</span>
+                <div>
+                  <div className="text-white/50 text-[10px] uppercase tracking-wider">
+                    {lang === 'mr' ? 'घटनेचा वेग' : 'Speed of Realization'}
+                  </div>
+                  <div className={`text-sm font-bold ${s.text}`}>
+                    {s.label[lang] || s.label.en}
+                    <span className="text-white/50 font-normal ml-2 text-xs">
+                      — {rs.description[lang] || rs.description.en}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-white/40 flex flex-wrap gap-x-3 gap-y-1">
+              <span>
+                {lang === 'mr' ? '११वा उप-स्वामी' : '11th cusp sub lord'}:{' '}
+                <span className="text-white/70">{pName(rs.eleventhCuspSubLord.planet, lang)}</span>{' '}
+                ({speedLabel[lang] || speedLabel.en})
+              </span>
+              <span>
+                {lang === 'mr' ? '११वी राशी' : '11th cusp sign'}:{' '}
+                <span className="text-white/70">{rs.eleventhCuspSign.sign}</span>{' '}
+                ({fruitLabel[lang] || fruitLabel.en})
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Timing Breakdown — layered convergence view */}
       {isYes && timing && (
         <div className="card-glass p-4">
@@ -529,7 +575,11 @@ export default function KPResultPanel({ result }) {
               {expanded.prominent && (
                 <div className="mt-2 space-y-1.5">
                   {(() => {
-                    const sorted = [...timing.prominentDates].sort((a, b) => (b.score || 0) - (a.score || 0));
+                    // Sort: speedAligned dates first, then by score
+                    const sorted = [...timing.prominentDates].sort((a, b) => {
+                      if (!!b.speedAligned !== !!a.speedAligned) return b.speedAligned ? 1 : -1;
+                      return (b.score || 0) - (a.score || 0);
+                    });
                     const maxScore = Math.max(...sorted.filter(pd => pd.score).map(pd => pd.score), 1);
                     return sorted.map((pd, i) => {
                       const pct = pd.score ? Math.round((pd.score / maxScore) * 100) : null;
@@ -540,6 +590,11 @@ export default function KPResultPanel({ result }) {
                           <div className="relative flex justify-between items-center gap-2 text-xs px-2 py-1">
                             <div className="text-white/40 flex-1 truncate" title={pd.description}>{pd.description}</div>
                             <div className="flex items-center gap-2 flex-shrink-0">
+                              {pd.speedAligned && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium" title={lang === 'mr' ? 'घटनेच्या वेगाशी संरेखित' : 'Aligned with speed of realization'}>
+                                  ⏱ {lang === 'mr' ? 'संरेखित' : 'aligned'}
+                                </span>
+                              )}
                               {pct !== null && (
                                 <span className={`text-[10px] font-medium ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-yellow-400' : 'text-white/30'}`}>
                                   {pct}%
